@@ -15,10 +15,10 @@
         }
         .navbar {
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            flex-wrap: wrap;
             gap: 20px;
             background: url('https://www.transparenttextures.com/patterns/circles.png'), rgba(255, 255, 255, 0.2);
             transition: opacity 0.5s ease-in-out;
@@ -35,11 +35,10 @@
             border-radius: 20px;
             cursor: pointer;
             box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
-            transition: transform 0.3s, box-shadow 0.3s;
-            animation: bounce 2s infinite;
+            width: 200px;
+            text-align: center;
         }
         .navbar button:hover {
-            transform: scale(1.1);
             box-shadow: 0 12px 20px rgba(0, 0, 0, 0.4);
             background: linear-gradient(45deg, #ffb700, #ff6f61);
         }
@@ -86,10 +85,6 @@
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
             animation: pulse 3s infinite;
         }
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
         @keyframes pulse {
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.05); }
@@ -97,7 +92,8 @@
         .back-button {
             position: fixed;
             top: 20px;
-            left: 20px;
+            left: 50%;
+            transform: translateX(-50%);
             padding: 10px 20px;
             font-size: 20px;
             color: white;
@@ -106,7 +102,6 @@
             border-radius: 15px;
             cursor: pointer;
             box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3);
-            transition: transform 0.3s;
             z-index: 1000;
             display: none;
         }
@@ -114,7 +109,7 @@
             display: block;
         }
         .back-button:hover {
-            transform: scale(1.1);
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.4);
         }
         #splash {
             position: fixed;
