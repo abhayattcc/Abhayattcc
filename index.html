@@ -21,10 +21,10 @@
             flex-wrap: wrap;
             gap: 20px;
             background: url('https://www.transparenttextures.com/patterns/circles.png'), rgba(255, 255, 255, 0.2);
-            transition: transform 0.5s ease-in-out;
+            transition: opacity 0.5s ease-in-out;
         }
         .navbar.hidden {
-            transform: translateY(-100%);
+            display: none;
         }
         .navbar button {
             padding: 20px 40px;
@@ -52,17 +52,28 @@
             left: 0;
             width: 100%;
             height: 100vh;
-            display: none;
+            display: flex;
             justify-content: center;
             align-items: center;
             background: #f0f0f0;
             transition: opacity 0.5s ease-in-out;
         }
-        .content.visible {
-            display: flex;
-            opacity: 1;
+        .content.hidden {
+            display: none;
         }
-        .content iframe {
+        #iframe-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 100;
+            display: none;
+        }
+        #iframe-container.visible {
+            display: block;
+        }
+        #content-iframe {
             width: 100%;
             height: 100%;
             border: none;
@@ -105,7 +116,7 @@
         .back-button:hover {
             transform: scale(1.1);
         }
-                #splash {
+        #splash {
             position: fixed;
             top: 0;
             left: 0;
@@ -142,16 +153,7 @@
             display: inline-block;
             animation: zoom 2s ease-in-out infinite;
         }
-        #iframe-container {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1000;
-        }
-         @keyframes zoom {
+        @keyframes zoom {
             0% { transform: scale(1); }
             50% { transform: scale(1.2); }
             100% { transform: scale(1); }
@@ -167,200 +169,216 @@
 </head>
 <body>
 <div id="splash">
-        <div class="logo-container">
-            <img id="logo-image" src="https://archive.org/download/image_20250904/abhaya.jpg" alt="Brand Logo">
-        </div>
-        <h1 id="animated-text">Abhayattcc</h1>
+    <div class="logo-container">
+        <img id="logo-image" src="https://archive.org/download/image_20250904/abhaya.jpg" alt="Brand Logo">
     </div>
-    <div class="navbar" id="navbar">
-        <div class="navbar" id="navbar">
-        <button onclick="showPage('outside.html)">Outside Apk</button>
-        <button onclick="showPage('https://abhayattcc.github.io/Best-odia-dictionary/')">Dictionary</button>
-        <button onclick="showPage('https://abhayattcc.github.io/Js/')">GK</button>
+    <h1 id="animated-text">Abhayattcc</h1>
+</div>
+<div class="navbar" id="navbar">
+    <button onclick="showPage('outside.html')">Outside Apk</button>
+    <button onclick="showPage('https://abhayattcc.github.io/Best-odia-dictionary/')">Dictionary</button>
+    <button onclick="showPage('https://abhayattcc.github.io/Js/')">GK</button>
+    <button onclick="showPage('https://abhayattcc.github.io/Notepad/')">Notepad</button>
+    <button onclick="showPage('https://abhayattcc.github.io/Resume-builder-by-Abhayattcc-/')">Resume Maker</button>
+    <button onclick="window.open('https://webtoapk.rerebot.com/', '_blank')">Web to APK</button>
+</div>
+<button class="back-button" id="backButton" onclick="showHome()">🏠</button>
+<div class="content" id="content">
+    <div class="home-screen">Welcome to the Fun Website Explorer!</div>
+</div>
+<div id="iframe-container">
+    <iframe id="content-iframe" title="Website Frame"></iframe>
+</div>
+<script>
+    // IndexedDB setup for storing the image
+    const DB_NAME = 'AbhayattccDB';
+    const STORE_NAME = 'images';
+    const IMAGE_KEY = 'logo';
 
-        <button onclick="showPage('https://abhayattcc.github.io/Notepad/')">Notepad</button>
+    function openDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, 1);
+            request.onupgradeneeded = () => {
+                const db = request.result;
+                db.createObjectStore(STORE_NAME);
+            };
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    }
 
-        <button onclick="showPage('https://abhayattcc.github.io/Resume-builder-by-Abhayattcc-/')">Resume Maker</button>
-
-        <button onclick="window.open('https://webtoapk.rerebot.com/', '_blank')">Web to APK</button>
-
-    </div>
-    <button class="back-button" id="backButton" onclick="showHome()">🏠</button>
-    <div class="content" id="content">
-        <div class="home-screen">Welcome to the Fun Website Explorer!</div>
-    </div>
-    <script>
- // IndexedDB setup for storing the image
-        const DB_NAME = 'AbhayattccDB';
-        const STORE_NAME = 'images';
-        const IMAGE_KEY = 'logo';
-
-        function openDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(DB_NAME, 1);
-                request.onupgradeneeded = () => {
-                    const db = request.result;
-                    db.createObjectStore(STORE_NAME);
+    async function storeImageInIndexedDB(url) {
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const reader = new FileReader();
+            return new Promise((resolve) => {
+                reader.onloadend = () => {
+                    const base64data = reader.result;
+                    openDB().then(db => {
+                        const transaction = db.transaction([STORE_NAME], 'readwrite');
+                        const store = transaction.objectStore(STORE_NAME);
+                        store.put(base64data, IMAGE_KEY);
+                        resolve(base64data);
+                    });
                 };
-                request.onsuccess = () => resolve(request.result);
+                reader.readAsDataURL(blob);
+            });
+        } catch (error) {
+            console.error('Failed to store image in IndexedDB:', error);
+            return url;
+        }
+    }
+
+    async function getImageFromIndexedDB() {
+        try {
+            const db = await openDB();
+            const transaction = db.transaction([STORE_NAME], 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            return new Promise((resolve, reject) => {
+                const request = store.get(IMAGE_KEY);
+                request.onsuccess = () => {
+                    resolve(request.result || 'https://archive.org/download/image_20250904/abhaya.jpg');
+                };
                 request.onerror = () => reject(request.error);
             });
+        } catch (error) {
+            console.error('Failed to get image from IndexedDB:', error);
+            return 'https://archive.org/download/image_20250904/abhaya.jpg';
         }
+    }
 
-        async function storeImageInIndexedDB(url) {
-            try {
-                const response = await fetch(url);
-                const blob = await response.blob();
-                const reader = new FileReader();
-                return new Promise((resolve) => {
-                    reader.onloadend = () => {
-                        const base64data = reader.result;
-                        openDB().then(db => {
-                            const transaction = db.transaction([STORE_NAME], 'readwrite');
-                            const store = transaction.objectStore(STORE_NAME);
-                            store.put(base64data, IMAGE_KEY);
-                            resolve(base64data);
-                        });
-                    };
-                    reader.readAsDataURL(blob);
-                });
-            } catch (error) {
-                console.error('Failed to store image in IndexedDB:', error);
-                return url;
-            }
-        }
+    // Inline Service Worker
+    const swCode = `
+        const CACHE_NAME = 'abhayattcc-v1';
+        const urlsToCache = [
+            '/',
+            '/index.html'
+        ];
 
-        async function getImageFromIndexedDB() {
-            try {
-                const db = await openDB();
-                const transaction = db.transaction([STORE_NAME], 'readonly');
-                const store = transaction.objectStore(STORE_NAME);
-                return new Promise((resolve, reject) => {
-                    const request = store.get(IMAGE_KEY);
-                    request.onsuccess = () => {
-                        resolve(request.result || 'https://archive.org/download/image_20250904/abhaya.jpg');
-                    };
-                    request.onerror = () => reject(request.error);
-                });
-            } catch (error) {
-                console.error('Failed to get image from IndexedDB:', error);
-                return 'https://archive.org/download/image_20250904/abhaya.jpg';
-            }
-        }
-
-        // Inline Service Worker
-        const swCode = `
-            const CACHE_NAME = 'abhayattcc-v1';
-            const urlsToCache = [
-                '/',
-                '/index.html'
-            ];
-
-            self.addEventListener('install', (event) => {
-                event.waitUntil(
-                    caches.open(CACHE_NAME)
-                        .then((cache) => {
-                            return cache.addAll(urlsToCache);
-                        })
-                );
-            });
-
-            self.addEventListener('fetch', (event) => {
-                event.respondWith(
-                    caches.match(event.request)
-                        .then((response) => {
-                            if (response) {
-                                return response;
-                            }
-                            return fetch(event.request).then(
-                                (networkResponse) => {
-                                    if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-                                        return networkResponse;
-                                    }
-                                    const responseToCache = networkResponse.clone();
-                                    caches.open(CACHE_NAME)
-                                        .then((cache) => {
-                                            cache.put(event.request, responseToCache);
-                                        });
-                                    return networkResponse;
-                                }
-                            );
-                        })
-                );
-            });
-
-            self.addEventListener('activate', (event) => {
-                event.waitUntil(
-                    caches.keys().then((cacheNames) => {
-                        return Promise.all(
-                            cacheNames.filter((name) => name !== CACHE_NAME)
-                                .map((name) => caches.delete(name))
-                        );
+        self.addEventListener('install', (event) => {
+            event.waitUntil(
+                caches.open(CACHE_NAME)
+                    .then((cache) => {
+                        return cache.addAll(urlsToCache);
                     })
-                );
-            });
-        `;
-
-        // Register inline service worker and handle splash screen
-        window.addEventListener('load', async () => {
-            // Load image from IndexedDB or fetch and store it
-            const logoImage = document.getElementById('logo-image');
-            const imageSrc = await getImageFromIndexedDB();
-            logoImage.src = imageSrc;
-            if (!imageSrc.startsWith('data:image')) {
-                const base64data = await storeImageInIndexedDB(imageSrc);
-                logoImage.src = base64data;
-            }
-
-            // Splash screen logic
-            setTimeout(() => {
-                document.getElementById('splash').classList.add('hidden');
-                setTimeout(() => {
-                    document.getElementById('splash').style.display = 'none';
-                }, 500);
-            }, 5000);
-
-            // Register service worker from inline code
-            if ('serviceWorker' in navigator) {
-                const blob = new Blob([swCode], { type: 'application/javascript' });
-                const swUrl = URL.createObjectURL(blob);
-                navigator.serviceWorker.register(swUrl)
-                    .then(reg => console.log('Service Worker registered:', reg))
-                    .catch(err => console.log('Service Worker registration failed:', err));
-            }
+            );
         });
 
-        function showPage(url) {
-            const navbar = document.getElementById('navbar');
-            const content = document.getElementById('content');
-            const backButton = document.getElementById('backButton');
-            navbar.classList.add('hidden');
-            content.innerHTML = `<iframe src="${url}" title="Website Frame"></iframe>`;
-            content.classList.add('visible');
-            backButton.classList.add('visible');
-            updateActiveButton(url);
+        self.addEventListener('fetch', (event) => {
+            event.respondWith(
+                caches.match(event.request)
+                    .then((response) => {
+                        if (response) {
+                            return response;
+                        }
+                        return fetch(event.request).then(
+                            (networkResponse) => {
+                                if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+                                    return networkResponse;
+                                }
+                                const responseToCache = networkResponse.clone();
+                                caches.open(CACHE_NAME)
+                                    .then((cache) => {
+                                        cache.put(event.request, responseToCache);
+                                    });
+                                return networkResponse;
+                            }
+                        );
+                    })
+            );
+        });
+
+        self.addEventListener('activate', (event) => {
+            event.waitUntil(
+                caches.keys().then((cacheNames) => {
+                    return Promise.all(
+                        cacheNames.filter((name) => name !== CACHE_NAME)
+                            .map((name) => caches.delete(name))
+                    );
+                })
+            );
+        });
+    `;
+
+    // Register inline service worker and handle splash screen
+    window.addEventListener('load', async () => {
+        // Load image from IndexedDB or fetch and store it
+        const logoImage = document.getElementById('logo-image');
+        const imageSrc = await getImageFromIndexedDB();
+        logoImage.src = imageSrc;
+        if (!imageSrc.startsWith('data:image')) {
+            const base64data = await storeImageInIndexedDB(imageSrc);
+            logoImage.src = base64data;
         }
 
-        function showHome() {
-            const navbar = document.getElementById('navbar');
-            const content = document.getElementById('content');
-            const backButton = document.getElementById('backButton');
-            navbar.classList.remove('hidden');
-            content.innerHTML = '<div class="home-screen">Welcome to the Fun Website Explorer!</div>';
-            content.classList.remove('visible');
-            backButton.classList.remove('visible');
-            updateActiveButton(null);
+        // Splash screen logic
+        setTimeout(() => {
+            document.getElementById('splash').classList.add('hidden');
+            setTimeout(() => {
+                document.getElementById('splash').style.display = 'none';
+            }, 500);
+        }, 5000);
+
+        // Register service worker from inline code
+        if ('serviceWorker' in navigator) {
+            const blob = new Blob([swCode], { type: 'application/javascript' });
+            const swUrl = URL.createObjectURL(blob);
+            navigator.serviceWorker.register(swUrl)
+                .then(reg => console.log('Service Worker registered:', reg))
+                .catch(err => console.log('Service Worker registration failed:', err));
         }
 
-        function updateActiveButton(url) {
-            const buttons = document.querySelectorAll('.navbar button');
-            buttons.forEach(button => {
-                button.classList.remove('active');
-                if (button.onclick.toString().includes(url)) {
-                    button.classList.add('active');
-                }
-            });
+        // Initialize history state for home page
+        history.replaceState({ page: 'home' }, '', '');
+    });
+
+    // Handle browser back button
+    window.addEventListener('popstate', (event) => {
+        if (event.state && event.state.page === 'home') {
+            showHome();
         }
-    </script>
+    });
+
+    function showPage(url) {
+        const navbar = document.getElementById('navbar');
+        const content = document.getElementById('content');
+        const backButton = document.getElementById('backButton');
+        const iframeContainer = document.getElementById('iframe-container');
+        const contentIframe = document.getElementById('content-iframe');
+        navbar.classList.add('hidden');
+        content.classList.add('hidden');
+        contentIframe.src = url;
+        iframeContainer.classList.add('visible');
+        backButton.classList.add('visible');
+        updateActiveButton(url);
+        // Push new state to history
+        history.pushState({ page: 'content', url }, '', `#${encodeURIComponent(url)}`);
+    }
+
+    function showHome() {
+        const navbar = document.getElementById('navbar');
+        const content = document.getElementById('content');
+        const backButton = document.getElementById('backButton');
+        const iframeContainer = document.getElementById('iframe-container');
+        navbar.classList.remove('hidden');
+        content.classList.remove('hidden');
+        iframeContainer.classList.remove('visible');
+        backButton.classList.remove('visible');
+        updateActiveButton(null);
+        // Update history state to home
+        history.pushState({ page: 'home' }, '', '');
+    }
+
+    function updateActiveButton(url) {
+        const buttons = document.querySelectorAll('.navbar button');
+        buttons.forEach(button => {
+            button.classList.remove('active');
+            if (url && button.onclick.toString().includes(url)) {
+                button.classList.add('active');
+            }
+        });
+    }
+</script>
 </body>
 </html>
