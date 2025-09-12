@@ -4,108 +4,47 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kid-Friendly Website Explorer</title>
-    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
     <style>
         body {
             margin: 0;
-            font-family: 'Comic Neue', cursive;
-            background: linear-gradient(135deg, #ff6f61, #6b7280);
-            height: 100vh;
-            overflow: hidden;
-        }
-        .navbar {
+            padding: 0;
+            font-family: 'Noto Sans', sans-serif;
+            font-weight: bold;
+            background: linear-gradient(135deg, #a1c4fd, #c2e9fb);
+            overflow-x: hidden;
+            min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            flex-wrap: wrap;
-            gap: 20px;
-            background: url('https://www.transparenttextures.com/patterns/circles.png'), rgba(255, 255, 255, 0.2);
-            transition: transform 0.5s ease-in-out;
+            color: #1a237e;
         }
-        .navbar.hidden {
-            transform: translateY(-100%);
+        .container {
+            text-align: center;
+        }
+        .navbar {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
         }
         .navbar button {
             padding: 20px 40px;
             font-size: 24px;
-            color: white;
-            background: linear-gradient(45deg, #ff6f61, #ffb700);
-            border: none;
-            border-radius: 20px;
+            width: 300px;
             cursor: pointer;
-            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
-            transition: transform 0.3s, box-shadow 0.3s;
-            animation: bounce 2s infinite;
+            background-color: #4CAF50;
+            color: #ffffff;
+            border: 2px solid #388E3C;
+            border-radius: 8px;
+            transition: background-color 0.3s;
         }
         .navbar button:hover {
-            transform: scale(1.1);
-            box-shadow: 0 12px 20px rgba(0, 0, 0, 0.4);
-            background: linear-gradient(45deg, #ffb700, #ff6f61);
+            background-color: #45A049;
         }
-        .navbar button.active {
-            background: linear-gradient(45deg, #34d399, #10b981);
+        .navbar button:focus {
+            outline: 3px solid #2196F3;
         }
-        .content {
-            position: relative;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100vh;
-            display: none;
-            justify-content: center;
-            align-items: center;
-            background: #f0f0f0;
-            transition: opacity 0.5s ease-in-out;
-        }
-        .content.visible {
-            display: flex;
-            opacity: 1;
-        }
-        .content iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
-            border-radius: 15px;
-        }
-        .home-screen {
-            text-align: center;
-            font-size: 36px;
-            color: #fff;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-            animation: pulse 3s infinite;
-        }
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-        .back-button {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            padding: 10px 20px;
-            font-size: 20px;
-            color: white;
-            background: linear-gradient(45deg, #ef4444, #f97316);
-            border: none;
-            border-radius: 15px;
-            cursor: pointer;
-            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3);
-            transition: transform 0.3s;
-            z-index: 1000;
-            display: none;
-        }
-        .back-button.visible {
-            display: block;
-        }
-        .back-button:hover {
-            transform: scale(1.1);
-        }
-                #splash {
+        #splash {
             position: fixed;
             top: 0;
             left: 0;
@@ -142,16 +81,7 @@
             display: inline-block;
             animation: zoom 2s ease-in-out infinite;
         }
-        #iframe-container {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1000;
-        }
-         @keyframes zoom {
+        @keyframes zoom {
             0% { transform: scale(1); }
             50% { transform: scale(1.2); }
             100% { transform: scale(1); }
@@ -166,31 +96,24 @@
     </style>
 </head>
 <body>
-<div id="splash">
+    <div id="splash">
         <div class="logo-container">
             <img id="logo-image" src="https://archive.org/download/image_20250904/abhaya.jpg" alt="Brand Logo">
         </div>
         <h1 id="animated-text">Abhayattcc</h1>
     </div>
-    <div class="navbar" id="navbar">
+    <div class="container">
         <div class="navbar" id="navbar">
-        <button onclick="showPage('outside.html)">Outside Apk</button>
-        <button onclick="showPage('https://abhayattcc.github.io/Best-odia-dictionary/')">Dictionary</button>
-        <button onclick="showPage('https://abhayattcc.github.io/Js/')">GK</button>
-
-        <button onclick="showPage('https://abhayattcc.github.io/Notepad/')">Notepad</button>
-
-        <button onclick="showPage('https://abhayattcc.github.io/Resume-builder-by-Abhayattcc-/')">Resume Maker</button>
-
-        <button onclick="window.open('https://webtoapk.rerebot.com/', '_blank')">Web to APK</button>
-
+             <button onclick="window.open('https://abhayattcc.github.io/Notepad/', '_blank')">Notepad</button>
+            <button onclick="window.open('https://abhayattcc.github.io/Best-odia-dictionary/', '_blank')">Magic Dictionary</button>
+            <button onclick="window.open('https://abhayattcc.github.io/Js/', '_blank')">Super GK Fun</button>
+            <button onclick="window.open('https://abhayattcc.github.io/Resume-builder-by-Abhayattcc-/', '_blank')">Cool Resume Maker</button>
+            <button onclick="window.open('https://webtoapk.rerebot.com/', '_blank')">Web to APK Wizard</button>
+        </div>
     </div>
-    <button class="back-button" id="backButton" onclick="showHome()">🏠</button>
-    <div class="content" id="content">
-        <div class="home-screen">Welcome to the Fun Website Explorer!</div>
-    </div>
+
     <script>
- // IndexedDB setup for storing the image
+        // IndexedDB setup for storing the image
         const DB_NAME = 'AbhayattccDB';
         const STORE_NAME = 'images';
         const IMAGE_KEY = 'logo';
@@ -329,38 +252,6 @@
                     .catch(err => console.log('Service Worker registration failed:', err));
             }
         });
-
-        function showPage(url) {
-            const navbar = document.getElementById('navbar');
-            const content = document.getElementById('content');
-            const backButton = document.getElementById('backButton');
-            navbar.classList.add('hidden');
-            content.innerHTML = `<iframe src="${url}" title="Website Frame"></iframe>`;
-            content.classList.add('visible');
-            backButton.classList.add('visible');
-            updateActiveButton(url);
-        }
-
-        function showHome() {
-            const navbar = document.getElementById('navbar');
-            const content = document.getElementById('content');
-            const backButton = document.getElementById('backButton');
-            navbar.classList.remove('hidden');
-            content.innerHTML = '<div class="home-screen">Welcome to the Fun Website Explorer!</div>';
-            content.classList.remove('visible');
-            backButton.classList.remove('visible');
-            updateActiveButton(null);
-        }
-
-        function updateActiveButton(url) {
-            const buttons = document.querySelectorAll('.navbar button');
-            buttons.forEach(button => {
-                button.classList.remove('active');
-                if (button.onclick.toString().includes(url)) {
-                    button.classList.add('active');
-                }
-            });
-        }
     </script>
 </body>
 </html>
