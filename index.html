@@ -102,12 +102,16 @@
     <img id="logo-image" src="abhaya.jpg" alt="Brand Logo">
 </div>
 <div class="navbar" id="navbar">
-    <button onclick="window.open('dictionary.html')">Dictionary</button>
-    <button onclick="window.open('gk.html')">GK</button>
-    <button onclick="window.open('notepad.html')">Notepad</button>
+    <button onclick="window.open('https://abhayattcc.github.io/Best-odia-dictionary/')">Dictionary</button>
+    <button onclick="window.open('https://abhayattcc.github.io/Js/')">GK</button>
+    <button onclick="window.open('https://abhayattcc.github.io/Notepad/')">Notepad</button>
     <button onclick="window.open('https://abhayattcc.github.io/Resume-builder-by-Abhayattcc-/')">Resume Maker</button>
     <button onclick="window.open('https://webtoapk.rerebot.com/')">Web to APK</button>
 </div>
+<audio id="background-audio" loop autoplay hidden>
+    <source src="https://archive.org/download/singing-bowl/singing-bowl.mp3" type="audio/mpeg">
+    Your browser does not support the audio element.
+</audio>
 <script>
     // IndexedDB setup for storing the image
     const DB_NAME = 'AbhayattccDB';
@@ -172,7 +176,8 @@
         const CACHE_NAME = 'abhayattcc-v1';
         const urlsToCache = [
             '/',
-            '/outside.html'
+            '/outside.html',
+            'https://archive.org/download/singing-bowl/singing-bowl.mp3'
         ];
 
         self.addEventListener('install', (event) => {
