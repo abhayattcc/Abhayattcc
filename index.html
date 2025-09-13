@@ -114,6 +114,35 @@
             background: linear-gradient(45deg, #2980b9, #3498db);
         }
 
+        /* Audio Control */
+        .audio-control {
+            position: fixed;
+            bottom: 20px;
+            right: 80px;
+            z-index: 1000;
+        }
+
+        .audio-control button {
+            width: 50px;
+            height: 50px;
+            font-size: 20px;
+            color: white;
+            background: #e67e22;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .audio-control button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+        }
+
         /* Support Control */
         .support-control {
             position: fixed;
@@ -207,6 +236,11 @@
                 padding: 20px;
             }
 
+            .audio-control {
+                bottom: 15px;
+                right: 70px;
+            }
+
             .support-control {
                 bottom: 15px;
                 right: 15px;
@@ -249,6 +283,9 @@
         </div>
     </section>
 
+    <div class="audio-control">
+        <button id="audio-toggle">▶️</button>
+    </div>
     <div class="support-control">
         <button id="support-toggle">👍🏻</button>
     </div>
@@ -260,7 +297,7 @@
         <p>&copy; 2025 Kid-Friendly Website Explorer. All rights reserved. | <a href="https://github.com/abhayattcc" target="_blank">Contact Us</a></p>
     </footer>
 
-    <audio id="background-audio" loop hidden>
+    <audio id="background-audio" hidden>
         <source src="https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/whale.mp3" type="audio/mpeg">
         Your browser does not support the audio element.
     </audio>
@@ -340,7 +377,7 @@
             const CACHE_NAME = 'abhayattcc-v1';
             const urlsToCache = [
                 '/',
-                '/outside.html',
+                '/index.html',
                 'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/whale.mp3',
                 'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/click.mp3',
                 'https://archive.org/download/image_20250904/abhaya.jpg'
@@ -411,21 +448,51 @@
                     .catch(err => console.log('Service Worker registration failed:', err));
             }
 
-            // Background audio functionality: play for 1 minute on load and every hour
+            // Background audio functionality: play one by one up to 5 times
             const audio = document.getElementById('background-audio');
-            const playAudioForOneMinute = () => {
-                audio.play().catch(error => console.error('Audio autoplay failed:', error));
-                setTimeout(() => {
+            const audioToggle = document.getElementById('audio-toggle');
+            let playCount = 0;
+            const maxPlays = 5;
+
+            function updateAudioButton() {
+                audioToggle.textContent = audio.paused ? '▶️' : '⏸️';
+            }
+
+            function playAudio() {
+                if (playCount < maxPlays) {
+                    audio.play().then(() => {
+                        updateAudioButton();
+                        playCount++;
+                    }).catch(error => console.error('Audio playback failed:', error));
+                }
+            }
+
+            audio.addEventListener('ended', () => {
+                if (playCount < maxPlays) {
+                    audio.currentTime = 0; // Reset to start
+                    playAudio();
+                } else {
                     audio.pause();
-                    audio.currentTime = 0; // Reset to start for next play
-                }, 60000); // Stop after 1 minute (60,000ms)
-            };
+                    audio.currentTime = 0;
+                    updateAudioButton();
+                }
+            });
 
-            // Play audio on initial load
-            playAudioForOneMinute();
+            audioToggle.addEventListener('click', () => {
+                playClickSound();
+                if (audio.paused) {
+                    if (playCount >= maxPlays) {
+                        playCount = 0; // Reset play count if user manually starts again
+                    }
+                    playAudio();
+                } else {
+                    audio.pause();
+                    updateAudioButton();
+                }
+            });
 
-            // Schedule audio to play for 1 minute every hour
-            setInterval(playAudioForOneMinute, 3600000); // Every 1 hour (3,600,000ms)
+            // Start first playback automatically
+            playAudio();
 
             // Support button functionality
             const supportButton = document.getElementById('support-toggle');
