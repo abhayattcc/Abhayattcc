@@ -127,7 +127,7 @@
                 height: 50px;
                 font-size: 20px;
             }
-            #logo-image {
+            .logo-image {
                 max-width: 120px;
             }
         }
@@ -138,17 +138,21 @@
     <img id="logo-image" src="https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/abhaya.jpg" alt="Brand Logo">
 </div>
 <div class="navbar" id="navbar">
-    <button onclick="window.open('https://abhayattcc.github.io/Best-odia-dictionary/')">Dictionary</button>
-    <button onclick="window.open('https://abhayattcc.github.io/Js/')">GK</button>
-    <button onclick="window.open('https://abhayattcc.github.io/Notepad/')">Notepad</button>
-    <button onclick="window.open('https://abhayattcc.github.io/Resume-builder-by-Abhayattcc-/')">Resume Maker</button>
-    <button onclick="window.open('https://webtoapk.rerebot.com/')">Web to APK</button>
+    <button onclick="playClickSound(); window.open('https://abhayattcc.github.io/Best-odia-dictionary/')">Dictionary</button>
+    <button onclick="playClickSound(); window.open('https://abhayattcc.github.io/Js/')">GK</button>
+    <button onclick="playClickSound(); window.open('https://abhayattcc.github.io/Notepad/')">Notepad</button>
+    <button onclick="playClickSound(); window.open('https://abhayattcc.github.io/Resume-builder-by-Abhayattcc-/')">Resume Maker</button>
+    <button onclick="playClickSound(); window.open('https://webtoapk.rerebot.com/')">Web to APK</button>
 </div>
 <div class="audio-control">
     <button id="audio-toggle">⏸</button>
 </div>
 <audio id="background-audio" loop hidden>
-    <source src="https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/singing-bowl.mp3" type="audio/mpeg">
+    <source src="https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/whale.mp3" type="audio/mpeg">
+    Your browser does not support the audio element.
+</audio>
+<audio id="click-audio" hidden>
+    <source src="https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/click.mp3" type="audio/mpeg">
     Your browser does not support the audio element.
 </audio>
 <script>
@@ -210,13 +214,21 @@
         }
     }
 
+    // Function to play click sound
+    function playClickSound() {
+        const clickAudio = document.getElementById('click-audio');
+        clickAudio.currentTime = 0; // Reset to start
+        clickAudio.play().catch(error => console.error('Click sound failed:', error));
+    }
+
     // Inline Service Worker
     const swCode = `
         const CACHE_NAME = 'abhayattcc-v1';
         const urlsToCache = [
             '/',
             '/outside.html',
-            'https://archive.org/download/singing-bowl/singing-bowl.mp3'
+            'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/whale.mp3',
+            'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/click.mp3'
         ];
 
         self.addEventListener('install', (event) => {
