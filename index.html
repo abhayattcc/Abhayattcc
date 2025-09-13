@@ -117,7 +117,7 @@
         /* Audio Control */
         .audio-control {
             position: fixed;
-            bottom: 20px;
+            bottom: 60px;
             right: 80px;
             z-index: 1000;
         }
@@ -146,7 +146,7 @@
         /* Support Control */
         .support-control {
             position: fixed;
-            bottom: 20px;
+            bottom: 60px;
             right: 20px;
             z-index: 1000;
         }
@@ -172,27 +172,57 @@
             box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
         }
 
-        .support-message {
+        /* Close Control */
+        .close-control {
             position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: #ffffff;
-            color: #333;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-            font-size: clamp(1rem, 2.5vw, 1.2rem);
-            max-width: 400px;
-            text-align: center;
-            z-index: 2000;
+            bottom: 60px;
+            right: 20px;
+            z-index: 1000;
             display: none;
-            animation: fadeIn 0.3s ease-in-out;
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translate(-50%, -60%); }
-            to { opacity: 1; transform: translate(-50%, -50%); }
+        .close-control button {
+            width: 50px;
+            height: 50px;
+            font-size: 20px;
+            color: white;
+            background: #c0392b;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .close-control button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Support Message Bar */
+        .support-message-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: #e67e22;
+            color: white;
+            padding: 10px 20px;
+            box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.2);
+            font-size: clamp(0.9rem, 2vw, 1rem);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.5s ease;
+        }
+
+        .support-message-bar.hidden {
+            opacity: 0;
+            pointer-events: none;
         }
 
         /* Footer */
@@ -202,6 +232,7 @@
             text-align: center;
             padding: 20px;
             font-size: 0.9rem;
+            margin-bottom: 40px;
         }
 
         footer a {
@@ -237,18 +268,18 @@
             }
 
             .audio-control {
-                bottom: 15px;
+                bottom: 55px;
                 right: 70px;
             }
 
-            .support-control {
-                bottom: 15px;
+            .support-control, .close-control {
+                bottom: 55px;
                 right: 15px;
             }
 
-            .support-message {
-                max-width: 300px;
-                font-size: 0.95rem;
+            .support-message-bar {
+                font-size: 0.85rem;
+                padding: 8px 15px;
             }
         }
     </style>
@@ -262,7 +293,7 @@
     </header>
 
     <section class="hero">
-        <p>Explore Abhayattcc World</p>
+        <p>100% No Ads, Helpful Content Fully Free to USE and Share With you friends and your family</p>
     </section>
 
     <section class="features">
@@ -287,14 +318,17 @@
         <button id="audio-toggle">▶️</button>
     </div>
     <div class="support-control">
-        <button id="support-toggle">👍🏻</button>
+        <button id="support-toggle">💰🙏🏻</button>
     </div>
-    <div class="support-message" id="support-message">
-        ଯଦି ଆମର ସେବା ଆପଣଙ୍କୁ ଭଲ ଲାଗୁଛି, ତାହେଲେ ଆପଣ ଅମକୁ କିଛି ଅର୍ଥ ସାହାଯ୍ୟ କରି ପାରିବେ ।
+    <div class="close-control">
+        <button id="close-support">✖️</button>
+    </div>
+    <div class="support-message-bar" id="support-message-bar">
+        <span>You can support us by clicking 💰🙏🏻</span>
     </div>
 
     <footer>
-        <p>&copy; 2025 Kid-Friendly Website Explorer. All rights reserved. | <a href="https://github.com/abhayattcc" target="_blank">Contact Us</a></p>
+        <p>&copy; 2025 Abhayattcc. All rights reserved. | <a href="https://github.com/abhayattcc" target="_blank">Contact Us</a></p>
     </footer>
 
     <audio id="background-audio" hidden>
@@ -307,10 +341,13 @@
     </audio>
 
     <script>
-        // IndexedDB setup for storing the image
+        // IndexedDB setup for storing HTML, images, and audio
         const DB_NAME = 'AbhayattccDB';
-        const STORE_NAME = 'images';
+        const STORE_NAME = 'resources';
+        const HTML_KEY = 'index.html';
         const IMAGE_KEY = 'logo';
+        const BG_AUDIO_KEY = 'background-audio';
+        const CLICK_AUDIO_KEY = 'click-audio';
 
         function openDB() {
             return new Promise((resolve, reject) => {
@@ -324,52 +361,163 @@
             });
         }
 
-        async function storeImageInIndexedDB(url) {
+        async function storeResourceInIndexedDB(key, data) {
             try {
-                const response = await fetch(url);
-                const blob = await response.blob();
-                const reader = new FileReader();
-                return new Promise((resolve) => {
-                    reader.onloadend = () => {
-                        const base64data = reader.result;
-                        openDB().then(db => {
-                            const transaction = db.transaction([STORE_NAME], 'readwrite');
-                            const store = transaction.objectStore(STORE_NAME);
-                            store.put(base64data, IMAGE_KEY);
-                            resolve(base64data);
-                        });
-                    };
-                    reader.readAsDataURL(blob);
+                const db = await openDB();
+                const transaction = db.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                return new Promise((resolve, reject) => {
+                    const request = store.put(data, key);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
                 });
             } catch (error) {
-                console.error('Failed to store image in IndexedDB:', error);
-                return url;
+                console.error(`Failed to store ${key} in IndexedDB:`, error);
             }
         }
 
-        async function getImageFromIndexedDB() {
+        async function getResourceFromIndexedDB(key, fallbackUrl) {
             try {
                 const db = await openDB();
                 const transaction = db.transaction([STORE_NAME], 'readonly');
                 const store = transaction.objectStore(STORE_NAME);
                 return new Promise((resolve, reject) => {
-                    const request = store.get(IMAGE_KEY);
+                    const request = store.get(key);
                     request.onsuccess = () => {
-                        resolve(request.result || 'https://archive.org/download/image_20250904/abhaya.jpg');
+                        resolve(request.result || (fallbackUrl ? fallbackUrl : null));
                     };
                     request.onerror = () => reject(request.error);
                 });
             } catch (error) {
-                console.error('Failed to get image from IndexedDB:', error);
-                return 'https://archive.org/download/image_20250904/abhaya.jpg';
+                console.error(`Failed to get ${key} from IndexedDB:`, error);
+                return fallbackUrl ? fallbackUrl : null;
             }
+        }
+
+        // Function to fetch and store resources
+        async function cacheResources() {
+            try {
+                // Cache HTML
+                const htmlContent = document.documentElement.outerHTML;
+                await storeResourceInIndexedDB(HTML_KEY, htmlContent);
+
+                // Cache logo image
+                const logoUrl = 'https://archive.org/download/image_20250904/abhaya.jpg';
+                const logoResponse = await fetch(logoUrl);
+                const logoBlob = await logoResponse.blob();
+                const reader = new FileReader();
+                await new Promise((resolve) => {
+                    reader.onloadend = () => {
+                        storeResourceInIndexedDB(IMAGE_KEY, reader.result);
+                        resolve();
+                    };
+                    reader.readAsDataURL(logoBlob);
+                });
+
+                // Cache background audio
+                const bgAudioUrl = 'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/whale.mp3';
+                const bgAudioResponse = await fetch(bgAudioUrl);
+                const bgAudioBlob = await bgAudioResponse.blob();
+                await new Promise((resolve) => {
+                    reader.onloadend = () => {
+                        storeResourceInIndexedDB(BG_AUDIO_KEY, reader.result);
+                        resolve();
+                    };
+                    reader.readAsDataURL(bgAudioBlob);
+                });
+
+                // Cache click audio
+                const clickAudioUrl = 'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/click.mp3';
+                const clickAudioResponse = await fetch(clickAudioUrl);
+                const clickAudioBlob = await clickAudioResponse.blob();
+                await new Promise((resolve) => {
+                    reader.onloadend = () => {
+                        storeResourceInIndexedDB(CLICK_AUDIO_KEY, reader.result);
+                        resolve();
+                    };
+                    reader.readAsDataURL(clickAudioBlob);
+                });
+            } catch (error) {
+                console.error('Failed to cache resources:', error);
+            }
+        }
+
+        // Function to load resources from IndexedDB and play audio
+        async function loadResources() {
+            const logoImage = document.getElementById('logo-image');
+            const bgAudio = document.getElementById('background-audio');
+            const clickAudio = document.getElementById('click-audio');
+
+            // Load logo image
+            const logoSrc = await getResourceFromIndexedDB(IMAGE_KEY, 'https://archive.org/download/image_20250904/abhaya.jpg');
+            logoImage.src = logoSrc;
+
+            // Load background audio
+            const bgAudioSrc = await getResourceFromIndexedDB(BG_AUDIO_KEY, 'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/whale.mp3');
+            bgAudio.src = bgAudioSrc;
+
+            // Load click audio
+            const clickAudioSrc = await getResourceFromIndexedDB(CLICK_AUDIO_KEY, 'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/click.mp3');
+            clickAudio.src = clickAudioSrc;
+
+            // Play background audio after successful loading
+            playAudio();
         }
 
         // Function to play click sound
         function playClickSound() {
             const clickAudio = document.getElementById('click-audio');
-            clickAudio.currentTime = 0; // Reset to start
+            clickAudio.currentTime = 0;
             clickAudio.play().catch(error => console.error('Click sound failed:', error));
+        }
+
+        // Function to play background audio
+        function playAudio() {
+            const audio = document.getElementById('background-audio');
+            const audioToggle = document.getElementById('audio-toggle');
+            let playCount = 0;
+            const maxPlays = 5;
+
+            function updateAudioButton() {
+                audioToggle.textContent = audio.paused ? '▶️' : '⏸️';
+            }
+
+            if (playCount < maxPlays) {
+                audio.play().then(() => {
+                    updateAudioButton();
+                    playCount++;
+                }).catch(error => console.error('Audio playback failed:', error));
+            }
+
+            audio.addEventListener('ended', () => {
+                if (playCount < maxPlays) {
+                    audio.currentTime = 0;
+                    audio.play().then(() => {
+                        updateAudioButton();
+                        playCount++;
+                    }).catch(error => console.error('Audio playback failed:', error));
+                } else {
+                    audio.pause();
+                    audio.currentTime = 0;
+                    updateAudioButton();
+                }
+            });
+
+            audioToggle.addEventListener('click', () => {
+                playClickSound();
+                if (audio.paused) {
+                    if (playCount >= maxPlays) {
+                        playCount = 0;
+                    }
+                    audio.play().then(() => {
+                        updateAudioButton();
+                        playCount++;
+                    }).catch(error => console.error('Audio playback failed:', error));
+                } else {
+                    audio.pause();
+                    updateAudioButton();
+                }
+            });
         }
 
         // Inline Service Worker
@@ -380,7 +528,8 @@
                 '/index.html',
                 'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/whale.mp3',
                 'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/click.mp3',
-                'https://archive.org/download/image_20250904/abhaya.jpg'
+                'https://archive.org/download/image_20250904/abhaya.jpg',
+                'https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap'
             ];
 
             self.addEventListener('install', (event) => {
@@ -428,18 +577,15 @@
             });
         `;
 
-        // Register service worker, load logo, handle background audio, and support button
+        // Register service worker and load resources
         window.addEventListener('load', async () => {
-            // Load image from IndexedDB or fetch and store it
-            const logoImage = document.getElementById('logo-image');
-            const imageSrc = await getImageFromIndexedDB();
-            logoImage.src = imageSrc;
-            if (!imageSrc.startsWith('data:image')) {
-                const base64data = await storeImageInIndexedDB('https://archive.org/download/image_20250904/abhaya.jpg');
-                logoImage.src = base64data;
-            }
+            // Cache all resources
+            await cacheResources();
 
-            // Register service worker from inline code
+            // Load resources from IndexedDB
+            await loadResources();
+
+            // Register service worker
             if ('serviceWorker' in navigator) {
                 const blob = new Blob([swCode], { type: 'application/javascript' });
                 const swUrl = URL.createObjectURL(blob);
@@ -448,84 +594,31 @@
                     .catch(err => console.log('Service Worker registration failed:', err));
             }
 
-            // Background audio functionality: play one by one up to 5 times
-            const audio = document.getElementById('background-audio');
-            const audioToggle = document.getElementById('audio-toggle');
-            let playCount = 0;
-            const maxPlays = 5;
-
-            function updateAudioButton() {
-                audioToggle.textContent = audio.paused ? '▶️' : '⏸️';
-            }
-
-            function playAudio() {
-                if (playCount < maxPlays) {
-                    audio.play().then(() => {
-                        updateAudioButton();
-                        playCount++;
-                    }).catch(error => console.error('Audio playback failed:', error));
-                }
-            }
-
-            audio.addEventListener('ended', () => {
-                if (playCount < maxPlays) {
-                    audio.currentTime = 0; // Reset to start
-                    playAudio();
-                } else {
-                    audio.pause();
-                    audio.currentTime = 0;
-                    updateAudioButton();
-                }
-            });
-
-            audioToggle.addEventListener('click', () => {
-                playClickSound();
-                if (audio.paused) {
-                    if (playCount >= maxPlays) {
-                        playCount = 0; // Reset play count if user manually starts again
-                    }
-                    playAudio();
-                } else {
-                    audio.pause();
-                    updateAudioButton();
-                }
-            });
-
-            // Start first playback automatically
-            playAudio();
-
-            // Support button functionality
+            // Support and close button functionality
             const supportButton = document.getElementById('support-toggle');
-            const supportMessage = document.getElementById('support-message');
-            let timeoutId;
+            const closeButton = document.getElementById('close-support');
+            const supportMessageBar = document.getElementById('support-message-bar');
+            const supportControl = document.querySelector('.support-control');
+            const closeControl = document.querySelector('.close-control');
 
+            // Support button click
             supportButton.addEventListener('click', () => {
-                if (supportMessage.style.display === 'block') {
-                    // Hide message and button
-                    supportMessage.style.display = 'none';
-                    supportButton.style.display = 'none';
-                    clearTimeout(timeoutId);
-                    // Show button again after 1 minute
-                    timeoutId = setTimeout(() => {
-                        supportButton.style.display = 'flex';
-                    }, 60000);
-                } else {
-                    // Show message for 3 seconds before opening UPI link
-                    supportMessage.style.display = 'block';
-                    playClickSound();
-                    setTimeout(() => {
-                        window.open('upi://pay?pa=9348692218-3@ibl&pn=ABHAYA%20%20BEHERA&mc=0000&mode=02&purpose=00', '_blank');
-                        // Auto-dismiss message after 1 minute
-                        timeoutId = setTimeout(() => {
-                            supportMessage.style.display = 'none';
-                            supportButton.style.display = 'none';
-                            // Show button again after another minute
-                            timeoutId = setTimeout(() => {
-                                supportButton.style.display = 'flex';
-                            }, 60000);
-                        }, 60000);
-                    }, 3000); // Delay UPI link opening by 3 seconds
-                }
+                playClickSound();
+                supportControl.style.display = 'none';
+                closeControl.style.display = 'flex';
+                setTimeout(() => {
+                    window.open('upi://pay?pa=9348692218-3@ibl&pn=ABHAYA%20%20BEHERA&mc=0000&mode=02&purpose=00', '_blank');
+                }, 3000);
+            });
+
+            // Close button click
+            closeButton.addEventListener('click', () => {
+                supportMessageBar.classList.add('hidden');
+                closeControl.style.display = 'none';
+                setTimeout(() => {
+                    supportMessageBar.classList.remove('hidden');
+                    supportControl.style.display = 'flex';
+                }, 1800000); // 30 minutes
             });
         });
     </script>
