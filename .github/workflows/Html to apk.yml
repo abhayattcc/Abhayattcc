@@ -1,0 +1,104 @@
+name: Build HTML to APK
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      apk_name:
+        description: 'APK Name'
+        required: true
+        default: 'MyWebViewApp'
+      version_name:
+        description: 'Version Name'
+        required: true
+        default: '1.0.0'
+      package_name:
+        description: 'Package Name'
+        required: true
+        default: 'com.example.mywebviewapp'
+      admob_id:
+        description: 'AdMob App ID (Optional)'
+        required: false
+      keystore_password:
+        description: 'Keystore Password'
+        required: true
+        default: 'password123'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Step 2: Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      # Step 3: Setup Python
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      # Step 4: Setup JDK
+      - name: Setup JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # Step 5: Setup Android SDK
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '13.0'
+
+      # Step 6: Install Gradle
+      - name: Install Gradle
+        run: |
+          curl -L https://services.gradle.org/distributions/gradle-8.10.2-bin.zip -o gradle.zip
+          unzip gradle.zip
+          mv gradle-8.10.2 tools/gradle
+        shell: bash
+
+      # Step 7: Install Node.js dependencies
+      - name: Install Node.js dependencies
+        run: npm install
+        working-directory: .
+
+      # Step 8: Create input directory and files
+      - name: Prepare input files
+        run: |
+          mkdir -p uploads/input
+          echo "${{ github.event.inputs.apk_name }}" > uploads/input/apk_name.txt
+          echo "${{ github.event.inputs.version_name }}" > uploads/input/version_name.txt
+          echo "${{ github.event.inputs.package_name }}" > uploads/input/package_name.txt
+          echo "${{ github.event.inputs.admob_id }}" > uploads/input/admob_id.txt
+          echo "${{ github.event.inputs.keystore_password }}" > uploads/input/keystore_password.txt
+          cp index.html uploads/input/index.html
+          cp icon.png uploads/input/icon.png  # Assuming icon.png is in the repository root
+        shell: bash
+
+      # Step 9: Run build script
+      - name: Run build script
+        run: python server/build_webview.py
+        env:
+          JAVA_HOME: ${{ env.JAVA_HOME }}
+        working-directory: .
+
+      # Step 10: Upload artifacts
+      - name: Upload output ZIP
+        uses: actions/upload-artifact@v3
+        with:
+          name: apk-output
+          path: outputs/*.zip
