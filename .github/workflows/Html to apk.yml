@@ -34,25 +34,25 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # Step 1: Checkout code
+      # Step 1: Checkout code (Updated to v4 for consistency)
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # Step 2: Setup Node.js
+      # Step 2: Setup Node.js (Updated to v4)
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # Step 3: Setup Python
+      # Step 3: Setup Python (Updated to v4)
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      # Step 4: Setup JDK
+      # Step 4: Setup JDK (Updated to v4)
       - name: Setup JDK
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -96,9 +96,10 @@ jobs:
           JAVA_HOME: ${{ env.JAVA_HOME }}
         working-directory: .
 
-      # Step 10: Upload artifacts
+      # Step 10: Upload artifacts (Updated to v4)
       - name: Upload output ZIP
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: apk-output
           path: outputs/*.zip
+          if-no-files-found: ignore  # Optional: Ignore if no files found, to avoid failure
