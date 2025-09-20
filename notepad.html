@@ -83,6 +83,7 @@
         align-items: center;
         justify-content: center;
         transition: background-color 0.3s;
+        position: relative; /* Added for tooltip positioning */
     }
     .toolbar button:hover {
         background-color: #40e0d0;
@@ -101,7 +102,7 @@
         position: relative;
     }
     .content.fullscreen {
-        padding: 10px;
+        padding: 0;
         width: 100%;
         height: calc(100vh - 60px);
         overflow: auto;
@@ -120,33 +121,30 @@
         padding: 10px;
         white-space: pre-wrap;
         background: white;
+        background-image: repeating-linear-gradient(0deg, transparent, transparent 29px, rgba(0,0,0,0.1) 29px, rgba(0,0,0,0.1) 30px);
         background-size: 100% 30px;
         line-height: 30px;
         outline: none;
         overflow-y: auto;
-        scroll-behavior: smooth;
-        scrollbar-width: auto;
-        scrollbar-color: #20b2aa #f0f8ff;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(0,0,0,0.2) transparent;
         user-select: text;
     }
     #textEditor::-webkit-scrollbar, #savedTextList::-webkit-scrollbar {
-        width: 16px;
+        width: 8px;
     }
     #textEditor::-webkit-scrollbar-track, #savedTextList::-webkit-scrollbar-track {
-        background: #f0f8ff;
-        border-radius: 8px;
+        background: transparent;
     }
     #textEditor::-webkit-scrollbar-thumb, #savedTextList::-webkit-scrollbar-thumb {
-        background-color: #20b2aa;
-        border-radius: 8px;
-        border: 2px solid #f0f8ff;
-        min-height: 60px;
+        background-color: rgba(0,0,0,0.2);
+        border-radius: 4px;
     }
     #drawingCanvas, #overlayCanvas {
         touch-action: auto;
         position: absolute;
-        top: 10px;
-        left: 10px;
+        top: 0;
+        left: 0;
         height: 100%;
         width: 100%;
         transition: opacity 0.5s ease-out;
@@ -169,6 +167,13 @@
         border-radius: 8px;
         border: 2px solid #20b2aa;
         background-color: #f0fff0;
+    }
+    .pen-options input[type="color"] {
+        width: 40px;
+        height: 40px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
     }
     .hidden {
         display: none;
@@ -201,6 +206,7 @@
         border: 2px solid #20b2aa;
         background-color: #f0fff0;
         cursor: pointer;
+        position: relative; /* Added for tooltip positioning */
     }
     .back-button, .view-trash-button {
         position: absolute;
@@ -252,6 +258,26 @@
         margin-top: 5px;
         color: #333;
     }
+    /* Tooltip styles */
+    .tooltip {
+        position: absolute;
+        background-color: #333;
+        color: white;
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        z-index: 1000;
+        opacity: 0;
+        transition: opacity 0.3s ease-in-out;
+        pointer-events: none;
+        top: -40px; /* Position above the button */
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: nowrap;
+    }
+    .tooltip.show {
+        opacity: 1;
+    }
     </style>
 </head>
 <body>
@@ -285,15 +311,14 @@
             <button title="Clear Current Page" onclick="clearCurrentPage()">🗑️</button>
             <button title="Undo" onclick="undo()">↺</button>
             <button title="Redo" onclick="redo()">↻</button>
-            <button title="Fill Canvas" onclick="fillCanvas()">🎨</button>
             <button title="Save as JPG" onclick="saveAsJPG()">🖼️</button>
             <button title="Share as PDF" onclick="shareAsPDF()">📄</button>
             <div class="pen-options">
                 <select id="penWidth" onchange="setPenWidth(this.value)">
-                    <option value="5">normal</option>
-                    <option value="10">Thick</option>
-                    <option value="15">Very Thick</option>
-                    <option value="20">large</option>
+                    <option value="3">normal</option>
+                    <option value="5">Thick</option>
+                    <option value="10">Very Thick</option>
+                    <option value="15">large</option>
                     <option value="25">very large</option>
                     <option value="30">Ultra Thick</option>
                 </select>
@@ -307,11 +332,12 @@
                     <option value="#ffa500">Orange</option>
                     <option value="#000000">Black</option>
                 </select>
+                <input type="color" id="colorPicker" value="#0000ff" onchange="setPenColor(this.value)">
             </div>
             <div class="page-controls">
-                <button onclick="previousPage()">Previous</button>
-                <select id="pageSelector" onchange="renderPage(this.value)"></select>
-                <button onclick="nextPage()">Next</button>
+                <button title="Previous Page" onclick="previousPage()">Previous</button>
+                <select id="pageSelector" onchange="saveCanvasState(); renderPage(this.value)"></select>
+                <button title="Next Page" onclick="nextPage()">Next</button>
             </div>
         </div>
     </div>
@@ -328,93 +354,117 @@
         </div>
     </div>
 </div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
-    // Inline Service Worker Registration
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            const swCode = `
-                const CACHE_NAME = 'notepad-cache-v17';
-                const urlsToCache = [
-                    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js',
-                    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js',
-                    'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
-                ];
+    // Session Storage for Drawings (temporary, cleared on reload)
+    let sessionCanvasPages = {};
+    let currentSection = 'text';
+    let isTextCollapsed = false;
+    let isDrawingCollapsed = false;
+    let canvasPages = [];
+    let currentPageIndex = 0;
+    let isDrawing = false;
+    let isErasing = false;
+    let isLocked = false;
+    let penWidth = 5;
+    let penColor = "#0000ff";
+    let savedTexts = {};
+    let deletedTexts = {};
+    let canvasContext = null;
+    let overlayContext = null;
+    let textUndoStack = [];
+    let textRedoStack = [];
+    let textChangeTimeout = null;
+    let drawingChangeTimeout = null;
+    let strokePoints = [];
+    let currentPdf = null;
+    let pdfPageCount = 0;
+    let lastPoint = null;
+    let lastTime = 0;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let drawingData = { id: 'current', pages: [], pdfId: null, pageCount: 0 };
+    let pageHistories = {};
+    let currentHistory = null;
+    let liveScale = 2;
+    let exportScale = 3;
 
-                self.addEventListener('install', event => {
-                    event.waitUntil(
-                        caches.open(CACHE_NAME)
-                            .then(cache => cache.addAll(urlsToCache))
-                            .then(() => self.skipWaiting())
-                            .catch(err => console.error('Cache open failed:', err))
-                    );
-                });
+    // Initialize canvases
+    const canvas = document.getElementById('drawingCanvas');
+    const overlayCanvas = document.getElementById('overlayCanvas');
+    canvasContext = canvas.getContext('2d', { willReadFrequently: true });
+    overlayContext = overlayCanvas.getContext('2d', { willReadFrequently: true });
+    canvasPages = [document.createElement('canvas')];
+    sessionCanvasPages[`canvasPage_0`] = { dataURL: null };
+    currentPageIndex = 0;
+    resizeCanvas();
 
-                self.addEventListener('activate', event => {
-                    event.waitUntil(
-                        caches.keys().then(cacheNames => {
-                            return Promise.all(
-                                cacheNames.filter(name => name !== CACHE_NAME)
-                                    .map(name => caches.delete(name))
-                            );
-                        }).then(() => self.clients.claim())
-                    );
-                });
+    // Initialize text editor
+    const textEditor = document.getElementById('textEditor');
+    const savedTextList = document.getElementById('savedTextList');
 
-                self.addEventListener('fetch', event => {
-                    event.respondWith(
-                        caches.match(event.request)
-                            .then(response => {
-                                if (response) {
-                                    return response;
-                                }
-                                return fetch(event.request).then(networkResponse => {
-                                    if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-                                        return networkResponse;
-                                    }
-                                    const responseToCache = networkResponse.clone();
-                                    caches.open(CACHE_NAME).then(cache => {
-                                        cache.put(event.request, responseToCache);
-                                    });
-                                    return networkResponse;
-                                }).catch(() => {
-                                    console.error('Fetch failed for:', event.request.url);
-                                    return new Response('Resource not available offline', { status: 404 });
-                                });
-                            })
-                    );
-                });
-            `;
-            const blob = new Blob([swCode], { type: 'application/javascript' });
-            const url = URL.createObjectURL(blob);
-            navigator.serviceWorker.register(url)
-                .then(reg => console.log('Service Worker registered'))
-                .catch(err => console.error('Service Worker registration failed:', err));
-        });
+    // Tooltip functionality
+    function showTooltip(button) {
+        // Remove existing tooltips
+        document.querySelectorAll('.tooltip').forEach(tooltip => tooltip.remove());
+        
+        // Create new tooltip
+        const title = button.getAttribute('title');
+        if (!title) return;
+        
+        const tooltip = document.createElement('div');
+        tooltip.className = 'tooltip';
+        tooltip.textContent = title;
+        button.appendChild(tooltip);
+        
+        // Show tooltip
+        setTimeout(() => {
+            tooltip.classList.add('show');
+            // Remove after 2 seconds
+            setTimeout(() => {
+                tooltip.classList.remove('show');
+                setTimeout(() => tooltip.remove(), 300);
+            }, 2000);
+        }, 0);
     }
 
-    // Set PDF.js worker source
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js';
+    // Add click listeners to all buttons for tooltips
+    document.querySelectorAll('.toolbar button, .page-controls button, .back-button, .view-trash-button').forEach(button => {
+        button.addEventListener('click', () => showTooltip(button));
+    });
 
     // IndexedDB Setup
     const DB_NAME = 'KidsNotepadDB';
     const DB_VERSION = 1;
-    let db;
+    let dbPromise = initIndexedDB();
 
     function initIndexedDB() {
         return new Promise((resolve, reject) => {
             const request = indexedDB.open(DB_NAME, DB_VERSION);
 
             request.onupgradeneeded = (event) => {
-                db = event.target.result;
-                db.createObjectStore('savedTexts', { keyPath: 'id' });
-                db.createObjectStore('deletedTexts', { keyPath: 'id' });
-                db.createObjectStore('canvasPages', { keyPath: 'id' });
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains('savedTexts')) {
+                    db.createObjectStore('savedTexts', { keyPath: 'id' });
+                }
+                if (!db.objectStoreNames.contains('deletedTexts')) {
+                    db.createObjectStore('deletedTexts', { keyPath: 'id' });
+                }
+                if (!db.objectStoreNames.contains('currentText')) {
+                    db.createObjectStore('currentText', { keyPath: 'id' });
+                }
+                if (!db.objectStoreNames.contains('drawings')) {
+                    db.createObjectStore('drawings', { keyPath: 'id' });
+                }
+                if (!db.objectStoreNames.contains('blobs')) {
+                    db.createObjectStore('blobs', { keyPath: 'id' });
+                }
+                if (!db.objectStoreNames.contains('libs')) {
+                    db.createObjectStore('libs', { keyPath: 'id' });
+                }
             };
 
             request.onsuccess = (event) => {
-                db = event.target.result;
+                const db = event.target.result;
                 if (navigator.storage && navigator.storage.persist) {
                     navigator.storage.persist().then(granted => {
                         if (granted) {
@@ -434,7 +484,20 @@
         });
     }
 
+    async function getFromStore(storeName, id) {
+        const db = await dbPromise;
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([storeName], 'readonly');
+            const store = transaction.objectStore(storeName);
+            const request = store.get(id);
+
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    }
+
     async function getAllFromStore(storeName) {
+        const db = await dbPromise;
         return new Promise((resolve, reject) => {
             const transaction = db.transaction([storeName], 'readonly');
             const store = transaction.objectStore(storeName);
@@ -453,6 +516,7 @@
     }
 
     async function putToStore(storeName, data) {
+        const db = await dbPromise;
         return new Promise((resolve, reject) => {
             const transaction = db.transaction([storeName], 'readwrite');
             const store = transaction.objectStore(storeName);
@@ -464,6 +528,7 @@
     }
 
     async function deleteFromStore(storeName, id) {
+        const db = await dbPromise;
         return new Promise((resolve, reject) => {
             const transaction = db.transaction([storeName], 'readwrite');
             const store = transaction.objectStore(storeName);
@@ -474,62 +539,284 @@
         });
     }
 
-    let currentSection = 'text';
-    let isTextCollapsed = false;
-    let isDrawingCollapsed = false;
-    let canvasPages = [];
-    let currentPageIndex = 0;
-    let isDrawing = false;
-    let isErasing = false;
-    let isLocked = false;
-    let penWidth = 5;
-    let penColor = "#008000";
-    let savedTexts = {};
-    let deletedTexts = {};
-    let canvasContext = null;
-    let overlayContext = null;
-    let undoStack = [];
-    let redoStack = [];
-    let textUndoStack = [];
-    let textRedoStack = [];
-    let textChangeTimeout = null;
-    let strokePoints = [];
-    let currentPdf = null;
-    let pdfPageCount = 0;
-    let lastPoint = null;
-    let lastTime = 0;
-    let touchStartX = 0;
-    let touchStartY = 0;
+    async function getBlob(id) {
+        const db = await dbPromise;
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['blobs'], 'readonly');
+            const store = transaction.objectStore('blobs');
+            const request = store.get(id);
 
-    // Initialize canvases
-    const canvas = document.getElementById('drawingCanvas');
-    const overlayCanvas = document.getElementById('overlayCanvas');
-    canvasContext = canvas.getContext('2d', { willReadFrequently: true });
-    overlayContext = overlayCanvas.getContext('2d', { willReadFrequently: true });
-    canvasPages = [document.createElement('canvas')];
-    currentPageIndex = 0;
-    resizeCanvas();
+            request.onsuccess = () => resolve(request.result ? request.result.blob : null);
+            request.onerror = () => reject(request.error);
+        });
+    }
 
-    // Initialize text editor
-    const textEditor = document.getElementById('textEditor');
-    const savedTextList = document.getElementById('savedTextList');
-    textUndoStack.push(textEditor.value);
-    textEditor.addEventListener('input', optimizeTextInput);
+    async function putBlob(id, blob) {
+        const db = await dbPromise;
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['blobs'], 'readwrite');
+            const store = transaction.objectStore('blobs');
+            const request = store.put({ id, blob });
+
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    async function loadLibs() {
+        const pdfUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js';
+        const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js';
+        const jspdfUrl = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+
+        let pdfLib = await getFromStore('libs', 'pdf');
+        if (!pdfLib) {
+            try {
+                const response = await fetch(pdfUrl);
+                if (!response.ok) throw new Error('Fetch failed');
+                const script = await response.text();
+                await putToStore('libs', { id: 'pdf', script });
+                pdfLib = { script };
+            } catch (err) {
+                console.error('Failed to load PDF.js:', err);
+                throw err;
+            }
+        }
+
+        let workerLib = await getFromStore('libs', 'worker');
+        if (!workerLib) {
+            try {
+                const response = await fetch(workerUrl);
+                if (!response.ok) throw new Error('Fetch failed');
+                const script = await response.text();
+                await putToStore('libs', { id: 'worker', script });
+                workerLib = { script };
+            } catch (err) {
+                console.error('Failed to load PDF worker:', err);
+                throw err;
+            }
+        }
+
+        let jspdfLib = await getFromStore('libs', 'jspdf');
+        if (!jspdfLib) {
+            try {
+                const response = await fetch(jspdfUrl);
+                if (!response.ok) throw new Error('Fetch failed');
+                const script = await response.text();
+                await putToStore('libs', { id: 'jspdf', script });
+                jspdfLib = { script };
+            } catch (err) {
+                console.error('Failed to load jsPDF:', err);
+                throw err;
+            }
+        }
+
+        // Inject scripts
+        const pdfScript = document.createElement('script');
+        pdfScript.textContent = pdfLib.script;
+        document.head.appendChild(pdfScript);
+
+        const workerBlob = new Blob([workerLib.script], { type: 'application/javascript' });
+        const workerBlobUrl = URL.createObjectURL(workerBlob);
+        pdfjsLib.GlobalWorkerOptions.workerSrc = workerBlobUrl;
+
+        const jspdfScript = document.createElement('script');
+        jspdfScript.textContent = jspdfLib.script;
+        document.head.appendChild(jspdfScript);
+    }
+
+    function cloneState(saved, deleted) {
+        const savedStr = JSON.stringify(saved);
+        const deletedStr = JSON.stringify(deleted);
+        const parsedSaved = JSON.parse(savedStr);
+        const parsedDeleted = JSON.parse(deletedStr);
+        Object.values(parsedSaved).forEach(item => {
+            if (item.date) item.date = new Date(item.date);
+        });
+        Object.values(parsedDeleted).forEach(item => {
+            if (item.date) item.date = new Date(item.date);
+            if (item.deletedDate) item.deletedDate = new Date(item.deletedDate);
+        });
+        return { saved: parsedSaved, deleted: parsedDeleted };
+    }
+
+    async function syncStores() {
+        const db = await dbPromise;
+        const txSaved = db.transaction('savedTexts', 'readwrite');
+        const storeSaved = txSaved.objectStore('savedTexts');
+        await new Promise((res, rej) => {
+            const req = storeSaved.clear();
+            req.onsuccess = () => res();
+            req.onerror = () => rej(req.error);
+        });
+        for (const item of Object.values(savedTexts)) {
+            await putToStore('savedTexts', item);
+        }
+
+        const txDeleted = db.transaction('deletedTexts', 'readwrite');
+        const storeDeleted = txDeleted.objectStore('deletedTexts');
+        await new Promise((res, rej) => {
+            const req = storeDeleted.clear();
+            req.onsuccess = () => res();
+            req.onerror = () => rej(req.error);
+        });
+        for (const item of Object.values(deletedTexts)) {
+            await putToStore('deletedTexts', item);
+        }
+    }
+
+    async function saveCurrentText() {
+        const item = { id: 'current', text: textEditor.value, date: new Date() };
+        await putToStore('currentText', item);
+    }
+
+    async function loadCurrentText() {
+        try {
+            const item = await getFromStore('currentText', 'current');
+            if (item) {
+                textEditor.value = item.text;
+            }
+        } catch (err) {
+            console.error('Failed to load current text:', err);
+        }
+    }
+
+    async function loadDrawingData() {
+        try {
+            const data = await getFromStore('drawings', 'current');
+            if (data) {
+                drawingData = data;
+                drawingData.pages.sort((a, b) => a.index - b.index);
+                drawingData.pages.forEach((p, i) => { p.index = i; });
+                drawingData.pages.forEach(p => {
+                    if (!p.id) {
+                        p.id = `page_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+                    }
+                });
+
+                const numPdfPages = drawingData.pdfId ? drawingData.pageCount : 0;
+                const numDrawingPages = drawingData.pages.length;
+                const totalPages = Math.max(numPdfPages, numDrawingPages);
+                canvasPages = Array(totalPages).fill(null).map(() => document.createElement('canvas'));
+                sessionCanvasPages = {};
+
+                drawingData.pages.forEach(p => {
+                    const c = canvasPages[p.index];
+                    if (p.width && p.height) {
+                        c.width = p.width;
+                        c.height = p.height;
+                    }
+                    sessionCanvasPages[`canvasPage_${p.index}`] = { dataURL: p.dataURL };
+                });
+
+                currentPageIndex = 0;
+
+                if (drawingData.pdfId) {
+                    const blob = await getBlob(drawingData.pdfId);
+                    if (blob) {
+                        const arrayBuffer = await blob.arrayBuffer();
+                        const loadingTask = pdfjsLib.getDocument({
+                            data: arrayBuffer,
+                            disableAutoFetch: true,
+                            disableStream: true,
+                            disableFontFace: true,
+                            nativeImageDecoderSupport: 'decode',
+                            maxImageSize: 1024 * 1024,
+                            isEvalSupported: false
+                        });
+                        currentPdf = await loadingTask.promise;
+                        pdfPageCount = drawingData.pageCount;
+
+                        // Render PDF pages to canvasPages
+                        const renderPromises = [];
+                        for (let i = 0; i < pdfPageCount; i++) {
+                            renderPromises.push(renderPdfToCanvas(i));
+                        }
+                        await Promise.all(renderPromises);
+                    }
+                }
+
+                // Update page selector
+                const selector = document.getElementById('pageSelector');
+                selector.innerHTML = '';
+                for (let i = 1; i <= totalPages; i++) {
+                    const option = document.createElement('option');
+                    option.value = i;
+                    option.text = `Page ${i}`;
+                    selector.appendChild(option);
+                }
+                if (totalPages > 0) {
+                    selector.value = 1;
+                    await renderPage(1);
+                }
+            } else {
+                // Default initial drawing
+                const initialId = 'page_0';
+                drawingData = { id: 'current', pages: [{ index: 0, dataURL: null, width: 0, height: 0, id: initialId }], pdfId: null, pageCount: 0 };
+                await putToStore('drawings', drawingData);
+            }
+        } catch (err) {
+            console.error('Failed to load drawing data:', err);
+        }
+    }
+
+    async function renderPdfToCanvas(index) {
+        const page = await currentPdf.getPage(index + 1);
+        const viewport = page.getViewport({ scale: liveScale });
+        const c = canvasPages[index];
+        c.width = viewport.width;
+        c.height = viewport.height;
+        const ctx = c.getContext('2d', { willReadFrequently: true });
+        ctx.clearRect(0, 0, c.width, c.height);
+        await page.render({
+            canvasContext: ctx,
+            viewport: viewport,
+            enableWebGL: true
+        }).promise;
+    }
+
+    async function saveDrawingData() {
+        await putToStore('drawings', drawingData);
+    }
+
+    function initCurrentHistory() {
+        if (currentPageIndex >= drawingData.pages.length) return;
+        const pageData = drawingData.pages[currentPageIndex];
+        if (!pageData.id) {
+            pageData.id = `page_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+        }
+        if (!pageHistories[pageData.id]) {
+            pageHistories[pageData.id] = { undo: [], redo: [] };
+        }
+        currentHistory = pageHistories[pageData.id];
+        if (currentHistory.undo.length === 0) {
+            currentHistory.undo.push({ dataURL: overlayCanvas.toDataURL(), points: [], bounds: null });
+        }
+    }
 
     // Initialize IndexedDB and load data
-    initIndexedDB().then(() => {
-        Promise.all([
-            getAllFromStore('savedTexts').then(data => savedTexts = data),
-            getAllFromStore('deletedTexts').then(data => deletedTexts = data)
-        ]).catch(err => console.error('Failed to load data from IndexedDB:', err));
-    });
+    dbPromise.then(async () => {
+        try {
+            await loadLibs();
+            savedTexts = await getAllFromStore('savedTexts') || {};
+            deletedTexts = await getAllFromStore('deletedTexts') || {};
+            await loadCurrentText();
+            const initialState = { text: textEditor.value, ...cloneState(savedTexts, deletedTexts) };
+            textUndoStack = [initialState];
+            await loadDrawingData();
+        } catch (err) {
+            console.error('Failed to initialize:', err);
+        }
+    }).catch(err => console.error('Failed to initialize IndexedDB:', err));
 
-    // Optimize text input for large amounts of text
-    function optimizeTextInput() {
+    textEditor.addEventListener('input', optimizeTextInput);
+
+    // Optimize text input
+    async function optimizeTextInput() {
         clearTimeout(textChangeTimeout);
-        textChangeTimeout = setTimeout(() => {
-            if (textEditor.value !== textUndoStack[textUndoStack.length - 1]) {
+        textChangeTimeout = setTimeout(async () => {
+            if (textEditor.value !== textUndoStack[textUndoStack.length - 1].text) {
                 saveTextState();
+                await saveCurrentText();
             }
         }, 300);
     }
@@ -581,14 +868,23 @@
     }
 
     function resetPosition() {
+        saveCanvasState();
         resizeCanvas();
     }
 
     // Tab switching and collapsing
-    function toggleSection(section) {
+    async function toggleSection(section) {
         const tabs = document.getElementById('tabs');
         const toolbar = document.getElementById('toolbar');
         const content = document.getElementById('content');
+
+        // Save current before switching
+        if (currentSection === 'text') {
+            await saveCurrentText();
+        }
+        if (currentSection === 'drawing') {
+            saveCanvasState();
+        }
 
         if (section === 'text') {
             if (currentSection === 'text') {
@@ -632,6 +928,8 @@
                 document.getElementById('lockButton').classList.remove('active');
                 showSection('drawing');
             }
+            // Always call resizeCanvas to ensure proper canvas size and drawing restoration
+            resizeCanvas();
         }
     }
 
@@ -662,34 +960,58 @@
         } else {
             document.getElementById('drawingCanvas').classList.remove('hidden');
             document.getElementById('overlayCanvas').classList.remove('hidden');
-            setTimeout(() => resizeCanvas(), 100);
+            // Defer resizeCanvas to ensure DOM is updated
+            setTimeout(() => resizeCanvas(), 0);
         }
         currentSection = section;
-        redrawCanvas();
+        if (section === 'drawing') {
+            redrawCanvas();
+        }
     }
 
     // Text Undo/Redo Functions
     function saveTextState() {
-        textUndoStack.push(textEditor.value);
+        const state = {
+            text: textEditor.value,
+            ...cloneState(savedTexts, deletedTexts)
+        };
+        textUndoStack.push(state);
         if (textUndoStack.length > 50) textUndoStack.shift();
         textRedoStack = [];
     }
 
-    function undoText() {
+    async function undoText() {
         if (textUndoStack.length <= 1) return;
-        const currentText = textEditor.value;
-        textRedoStack.push(currentText);
+        const currentClone = cloneState(savedTexts, deletedTexts);
+        const currentState = {
+            text: textEditor.value,
+            ...currentClone
+        };
+        textRedoStack.push(currentState);
         if (textRedoStack.length > 50) textRedoStack.shift();
-        textUndoStack.pop();
-        textEditor.value = textUndoStack[textUndoStack.length - 1] || '';
+        const prevState = textUndoStack.pop();
+        textEditor.value = prevState.text;
+        savedTexts = prevState.saved;
+        deletedTexts = prevState.deleted;
+        await syncStores();
+        await saveCurrentText();
     }
 
-    function redoText() {
+    async function redoText() {
         if (textRedoStack.length === 0) return;
-        const currentText = textEditor.value;
-        textUndoStack.push(currentText);
+        const currentClone = cloneState(savedTexts, deletedTexts);
+        const currentState = {
+            text: textEditor.value,
+            ...currentClone
+        };
+        textUndoStack.push(currentState);
         if (textUndoStack.length > 50) textUndoStack.shift();
-        textEditor.value = textRedoStack.pop();
+        const nextState = textRedoStack.pop();
+        textEditor.value = nextState.text;
+        savedTexts = nextState.saved;
+        deletedTexts = nextState.deleted;
+        await syncStores();
+        await saveCurrentText();
     }
 
     // Text Editor Functions
@@ -700,6 +1022,7 @@
         const replace = prompt('Replace with?');
         textEditor.value = textEditor.value.replace(new RegExp(find, 'g'), replace);
         saveTextState();
+        saveCurrentText();
     }
 
     function selectAll() {
@@ -715,15 +1038,23 @@
         saveTextState();
         textEditor.value = '';
         saveTextState();
+        saveCurrentText();
     }
 
     async function saveText() {
         const text = textEditor.value;
+        if (!text.trim()) {
+            alert('Nothing to save!');
+            return;
+        }
         const id = Date.now().toString();
+        saveTextState();
         try {
-            await putToStore('savedTexts', { id, text, date: new Date() });
-            savedTexts[id] = { text, date: new Date() };
+            const item = { id, text, date: new Date() };
+            await putToStore('savedTexts', item);
+            savedTexts[id] = item;
             alert('Text saved! ID: ' + id);
+            saveTextState(); // Update state after saving
         } catch (err) {
             console.error('Failed to save text:', err);
             alert('Failed to save text!');
@@ -760,8 +1091,9 @@
                 div.innerText = `ID: ${id} | Date: ${new Date(texts[id].date).toLocaleString()} | ${texts[id].text.slice(0, 50)}...`;
                 div.onclick = async () => {
                     if (mode === 'delete') {
+                        saveTextState();
                         try {
-                            deletedTexts[id] = savedTexts[id];
+                            deletedTexts[id] = { ...savedTexts[id], deletedDate: new Date() };
                             await putToStore('deletedTexts', deletedTexts[id]);
                             await deleteFromStore('savedTexts', id);
                             delete savedTexts[id];
@@ -773,27 +1105,29 @@
                         }
                     } else if (mode === 'restore') {
                         const now = new Date();
-                        const deletedDate = new Date(deletedTexts[id].date);
+                        const deletedDate = new Date(deletedTexts[id].deletedDate || deletedTexts[id].date);
                         const daysDiff = (now - deletedDate) / (1000 * 60 * 60 * 24);
-                        if (daysDiff <= 60) {
-                            try {
-                                saveTextState();
-                                savedTexts[id] = deletedTexts[id];
-                                await putToStore('savedTexts', savedTexts[id]);
-                                await deleteFromStore('deletedTexts', id);
-                                delete deletedTexts[id];
-                                textEditor.value = savedTexts[id].text;
-                                saveTextState();
-                                alert('Text restored!');
-                                showSection('text');
-                            } catch (err) {
-                                console.error('Failed to restore text:', err);
-                                alert('Failed to restore text!');
-                            }
-                        } else {
+                        if (daysDiff > 60) {
                             alert('Text is older than 60 days!');
+                            return;
+                        }
+                        saveTextState();
+                        try {
+                            savedTexts[id] = { ...deletedTexts[id] };
+                            await putToStore('savedTexts', savedTexts[id]);
+                            await deleteFromStore('deletedTexts', id);
+                            delete deletedTexts[id];
+                            textEditor.value = savedTexts[id].text;
+                            saveTextState();
+                            await saveCurrentText();
+                            alert('Text restored!');
+                            showSection('text');
+                        } catch (err) {
+                            console.error('Failed to restore text:', err);
+                            alert('Failed to restore text!');
                         }
                     } else if (mode === 'permanentlyDelete') {
+                        saveTextState();
                         try {
                             await deleteFromStore('deletedTexts', id);
                             delete deletedTexts[id];
@@ -807,6 +1141,7 @@
                         saveTextState();
                         textEditor.value = savedTexts[id].text;
                         saveTextState();
+                        await saveCurrentText();
                         showSection('text');
                     }
                 };
@@ -817,6 +1152,7 @@
         const backButton = document.createElement('button');
         backButton.className = 'back-button';
         backButton.innerText = 'Back';
+        backButton.title = 'Back to Text Editor';
         backButton.onclick = () => showSection('text');
         list.insertBefore(backButton, list.firstChild);
 
@@ -824,6 +1160,7 @@
             const viewTrashButton = document.createElement('button');
             viewTrashButton.className = 'view-trash-button';
             viewTrashButton.innerText = 'View Trash';
+            viewTrashButton.title = 'View Deleted Texts';
             viewTrashButton.onclick = () => renderTextList('permanentlyDelete');
             list.insertBefore(viewTrashButton, list.firstChild);
         }
@@ -833,11 +1170,11 @@
         document.getElementById('textEditor').classList.add('hidden');
         document.getElementById('savedTextList').classList.remove('hidden');
         try {
-            deletedTexts = await getAllFromStore('deletedTexts');
+            savedTexts = await getAllFromStore('savedTexts');
             renderTextList('delete');
         } catch (err) {
-            console.error('Failed to load deleted texts:', err);
-            alert('Failed to load deleted texts!');
+            console.error('Failed to load saved texts:', err);
+            alert('Failed to load saved texts!');
         }
     }
 
@@ -880,7 +1217,13 @@
             const file = e.target.files[0];
             if (!file) return;
 
-            saveTextState();
+            // Save current state before opening
+            if (currentSection === 'text') {
+                await saveCurrentText();
+            } else if (currentSection === 'drawing') {
+                saveCanvasState();
+            }
+
             const progressBarContainer = document.getElementById('progressBarContainer');
             const progressFill = document.getElementById('progressFill');
             const progressText = document.getElementById('progressText');
@@ -893,17 +1236,25 @@
                 const text = await file.text();
                 textEditor.value = text;
                 saveTextState();
+                await saveCurrentText();
                 progressBarContainer.classList.add('hidden');
                 showSection('text');
             } else if (file.type === 'application/pdf') {
                 try {
+                    // Clear previous PDF data
+                    const oldPdfId = drawingData.pdfId;
+                    if (oldPdfId) {
+                        await deleteFromStore('blobs', oldPdfId);
+                    }
                     currentPdf = null;
                     pdfPageCount = 0;
                     canvasPages = [];
-                    currentPageIndex = 0;
-                    undoStack = [];
-                    redoStack = [];
+                    sessionCanvasPages = {};
+                    pageHistories = {};
                     overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+                    const pdfId = `pdf_${Date.now()}`;
+                    await putBlob(pdfId, file);
 
                     const arrayBuffer = await file.arrayBuffer();
                     const loadingTask = pdfjsLib.getDocument({
@@ -950,6 +1301,7 @@
                     if (textContent.length > 0) {
                         textEditor.value = textContent;
                         saveTextState();
+                        await saveCurrentText();
                         updateProgress(2, totalSteps);
                         progressBarContainer.classList.add('hidden');
                         showSection('text');
@@ -957,6 +1309,11 @@
                     } else {
                         totalSteps = pdfPageCount + 2;
                         updateProgress(2, totalSteps);
+
+                        drawingData.pdfId = pdfId;
+                        drawingData.pageCount = pdfPageCount;
+                        drawingData.pages = Array(pdfPageCount).fill(null).map((_, i) => ({ index: i, dataURL: null, width: 0, height: 0, id: `pdfpage_${i}` }));
+                        await saveDrawingData();
 
                         const selector = document.getElementById('pageSelector');
                         selector.innerHTML = '';
@@ -966,15 +1323,18 @@
                             option.text = `Page ${i}`;
                             selector.appendChild(option);
                         }
-                        canvasPages = Array(pdfPageCount).fill().map(() => document.createElement('canvas'));
+                        canvasPages = Array(pdfPageCount).fill(null).map(() => document.createElement('canvas'));
+                        for (let i = 0; i < pdfPageCount; i++) {
+                            sessionCanvasPages[`canvasPage_${i}`] = { dataURL: null };
+                        }
                         progressBarContainer.classList.add('hidden');
-                        isLocked = true; // Open in lock mode by default
+                        isLocked = true;
                         document.getElementById('lockButton').classList.add('active');
                         document.getElementById('content').classList.add('locked');
                         document.getElementById('drawingCanvas').classList.add('locked');
                         document.getElementById('overlayCanvas').classList.add('locked');
                         showSection('drawing');
-                        renderPage(1);
+                        await renderPage(1);
                     }
                 } catch (err) {
                     console.error('PDF loading failed:', err);
@@ -995,25 +1355,19 @@
 
     function previousPage() {
         if (currentPageIndex > 0) {
-            putToStore('canvasPages', { id: `canvasPage_${currentPageIndex}`, dataURL: overlayCanvas.toDataURL() })
-                .then(() => {
-                    currentPageIndex--;
-                    document.getElementById('pageSelector').value = currentPageIndex + 1;
-                    renderPage(currentPageIndex + 1);
-                })
-                .catch(err => console.error('Failed to save canvas page:', err));
+            saveCanvasState();
+            currentPageIndex--;
+            document.getElementById('pageSelector').value = currentPageIndex + 1;
+            renderPage(currentPageIndex + 1);
         }
     }
 
     function nextPage() {
         if (currentPageIndex < canvasPages.length - 1) {
-            putToStore('canvasPages', { id: `canvasPage_${currentPageIndex}`, dataURL: overlayCanvas.toDataURL() })
-                .then(() => {
-                    currentPageIndex++;
-                    document.getElementById('pageSelector').value = currentPageIndex + 1;
-                    renderPage(currentPageIndex + 1);
-                })
-                .catch(err => console.error('Failed to save canvas page:', err));
+            saveCanvasState();
+            currentPageIndex++;
+            document.getElementById('pageSelector').value = currentPageIndex + 1;
+            renderPage(currentPageIndex + 1);
         }
     }
 
@@ -1025,7 +1379,7 @@
 
         if (currentPdf && currentPageIndex < pdfPageCount) {
             const page = await currentPdf.getPage(pageNum);
-            const viewport = page.getViewport({ scale: 3 });
+            const viewport = page.getViewport({ scale: liveScale });
             imgWidth = viewport.width;
             imgHeight = viewport.height;
             canvasPages[currentPageIndex].width = imgWidth;
@@ -1041,49 +1395,35 @@
             canvasPages[currentPageIndex].width = imgWidth;
             canvasPages[currentPageIndex].height = imgHeight;
             const ctx = canvasPages[currentPageIndex].getContext('2d', { willReadFrequently: true });
-            ctx.clearRect(0, 0, imgWidth, imgHeight);
+            drawBackground(ctx);
         }
 
         canvas.width = imgWidth;
         canvas.height = imgHeight;
-        overlayCanvas.width = content.offsetWidth;
-        overlayCanvas.height = content.offsetHeight;
+        overlayCanvas.width = imgWidth;
+        overlayCanvas.height = imgHeight;
         canvasPages[currentPageIndex].width = canvas.width;
         canvasPages[currentPageIndex].height = canvas.height;
 
-        try {
-            const transaction = db.transaction(['canvasPages'], 'readonly');
-            const store = transaction.objectStore('canvasPages');
-            const request = store.get(`canvasPage_${currentPageIndex}`);
-            request.onsuccess = () => {
-                const savedCanvas = request.result;
-                if (savedCanvas && savedCanvas.dataURL) {
-                    const img = new Image();
-                    img.src = savedCanvas.dataURL;
-                    img.onload = () => {
-                        overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-                        overlayContext.drawImage(img, 0, 0);
-                        redrawCanvas();
-                    };
-                    img.onerror = () => {
-                        overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-                        redrawCanvas();
-                    };
-                } else {
-                    overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-                    redrawCanvas();
-                }
+        const savedCanvas = sessionCanvasPages[`canvasPage_${currentPageIndex}`];
+        if (savedCanvas && savedCanvas.dataURL) {
+            const img = new Image();
+            img.src = savedCanvas.dataURL;
+            img.onload = () => {
+                overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                overlayContext.drawImage(img, 0, 0, overlayCanvas.width, overlayCanvas.height);
+                redrawCanvas();
             };
-            request.onerror = () => {
-                console.error('Failed to load canvas page:', request.error);
+            img.onerror = () => {
                 overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
                 redrawCanvas();
             };
-        } catch (err) {
-            console.error('Failed to load canvas page:', err);
+        } else {
             overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
             redrawCanvas();
         }
+
+        initCurrentHistory();
     }
 
     // File download helper
@@ -1107,6 +1447,7 @@
 
     // Save as JPG
     async function saveAsJPG() {
+        saveCanvasState();
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = canvas.width;
         tempCanvas.height = canvas.height;
@@ -1114,7 +1455,7 @@
 
         if (currentPdf && currentPageIndex < pdfPageCount) {
             const page = await currentPdf.getPage(currentPageIndex + 1);
-            const viewport = page.getViewport({ scale: 3 });
+            const viewport = page.getViewport({ scale: exportScale });
             tempCanvas.width = viewport.width;
             tempCanvas.height = viewport.height;
             await page.render({
@@ -1123,8 +1464,7 @@
                 enableWebGL: true
             }).promise;
         } else {
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+            drawBackground(ctx);
         }
 
         ctx.drawImage(overlayCanvas, 0, 0, tempCanvas.width, tempCanvas.height);
@@ -1134,6 +1474,7 @@
 
     // Share as PDF
     async function shareAsPDF() {
+        saveCanvasState();
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({
             orientation: 'portrait',
@@ -1153,13 +1494,13 @@
         for (let i = 0; i < canvasPages.length; i++) {
             if (i > 0) doc.addPage();
             const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = canvasPages[i].width;
-            tempCanvas.height = canvasPages[i].height;
+            tempCanvas.width = canvasPages[i].width * (exportScale / liveScale);
+            tempCanvas.height = canvasPages[i].height * (exportScale / liveScale);
             const ctx = tempCanvas.getContext('2d');
 
             if (currentPdf && i < pdfPageCount) {
                 const page = await currentPdf.getPage(i + 1);
-                const viewport = page.getViewport({ scale: 3 });
+                const viewport = page.getViewport({ scale: exportScale });
                 tempCanvas.width = viewport.width;
                 tempCanvas.height = viewport.height;
                 await page.render({
@@ -1168,34 +1509,20 @@
                     enableWebGL: true
                 }).promise;
             } else {
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+                drawBackground(ctx);
             }
 
-            try {
-                const transaction = db.transaction(['canvasPages'], 'readonly');
-                const store = transaction.objectStore('canvasPages');
-                const request = store.get(`canvasPage_${i}`);
+            const savedCanvas = sessionCanvasPages[`canvasPage_${i}`];
+            if (savedCanvas && savedCanvas.dataURL) {
+                const img = new Image();
                 await new Promise(resolve => {
-                    request.onsuccess = () => {
-                        const savedCanvas = request.result;
-                        if (savedCanvas && savedCanvas.dataURL) {
-                            const img = new Image();
-                            img.src = savedCanvas.dataURL;
-                            img.onload = () => {
-                                ctx.drawImage(img, 0, 0, tempCanvas.width, tempCanvas.height);
-                                resolve();
-                            };
-                            img.onerror = () => resolve();
-                        } else {
-                            resolve();
-                        }
+                    img.src = savedCanvas.dataURL;
+                    img.onload = () => {
+                        ctx.drawImage(img, 0, 0, tempCanvas.width, tempCanvas.height);
+                        resolve();
                     };
-                    request.onerror = () => resolve();
+                    img.onerror = () => resolve();
                 });
-            } catch (err) {
-                console.error('Failed to load canvas page for PDF:', err);
-                resolve();
             }
 
             const imgData = tempCanvas.toDataURL('image/jpeg', 0.95);
@@ -1222,59 +1549,141 @@
         let imgHeight = content.offsetHeight;
 
         if (currentPdf && currentPageIndex < pdfPageCount) {
+            // For PDF pages, use the stored dimensions
             imgWidth = canvasPages[currentPageIndex].width || imgWidth;
             imgHeight = canvasPages[currentPageIndex].height || imgHeight;
         }
 
-        canvas.width = imgWidth;
-        canvas.height = imgHeight;
-        overlayCanvas.width = content.offsetWidth;
-        overlayCanvas.height = content.offsetHeight;
-        canvasPages[currentPageIndex].width = canvas.width;
-        canvasPages[currentPageIndex].height = canvas.height;
-        canvasPages[currentPageIndex].getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-        try {
-            const transaction = db.transaction(['canvasPages'], 'readonly');
-            const store = transaction.objectStore('canvasPages');
-            const request = store.get(`canvasPage_${currentPageIndex}`);
-            request.onsuccess = () => {
-                const savedCanvas = request.result;
-                if (savedCanvas && savedCanvas.dataURL) {
-                    const img = new Image();
-                    img.src = savedCanvas.dataURL;
-                    img.onload = () => {
-                        overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-                        overlayContext.drawImage(img, 0, 0);
-                        redrawCanvas();
-                    };
-                } else {
+        // Only resize if dimensions have changed
+        if (canvas.width !== imgWidth || canvas.height !== imgHeight ||
+            overlayCanvas.width !== imgWidth || overlayCanvas.height !== imgHeight) {
+            canvas.width = imgWidth;
+            canvas.height = imgHeight;
+            overlayCanvas.width = imgWidth;
+            overlayCanvas.height = imgHeight;
+            canvasPages[currentPageIndex].width = imgWidth;
+            canvasPages[currentPageIndex].height = imgHeight;
+
+            // Clear the contexts
+            canvasContext.clearRect(0, 0, canvas.width, canvas.height);
+            overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+            // Restore the drawing from session storage
+            const savedCanvas = sessionCanvasPages[`canvasPage_${currentPageIndex}`];
+            if (savedCanvas && savedCanvas.dataURL) {
+                const img = new Image();
+                img.src = savedCanvas.dataURL;
+                img.onload = () => {
+                    overlayContext.drawImage(img, 0, 0, overlayCanvas.width, overlayCanvas.height);
+                    redrawCanvas();
+                };
+                img.onerror = () => {
                     overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
                     redrawCanvas();
-                }
-            };
-            request.onerror = () => {
-                console.error('Failed to load canvas page:', request.error);
+                };
+            } else {
+                redrawCanvas();
+            }
+        } else {
+            // If no resize is needed, still ensure the drawing is restored
+            const savedCanvas = sessionCanvasPages[`canvasPage_${currentPageIndex}`];
+            if (savedCanvas && savedCanvas.dataURL) {
+                const img = new Image();
+                img.src = savedCanvas.dataURL;
+                img.onload = () => {
+                    overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                    overlayContext.drawImage(img, 0, 0, overlayCanvas.width, overlayCanvas.height);
+                    redrawCanvas();
+                };
+                img.onerror = () => {
+                    overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                    redrawCanvas();
+                };
+            } else {
                 overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
                 redrawCanvas();
-            };
-        } catch (err) {
-            console.error('Failed to load canvas page:', err);
-            overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-            redrawCanvas();
+            }
+        }
+
+        if (currentSection === 'drawing') {
+            initCurrentHistory();
         }
     }
 
-    function addCanvasPage() {
+    async function addCanvasPage() {
+        saveCanvasState();
         const content = document.querySelector('.content');
+        const newIndex = currentPageIndex + 1;
+        const newCanvas = document.createElement('canvas');
+        newCanvas.width = content.offsetWidth;
+        newCanvas.height = content.offsetHeight;
+        const newId = `page_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+        const newPageData = { index: newIndex, dataURL: null, width: newCanvas.width, height: newCanvas.height, id: newId };
+        drawingData.pages.splice(newIndex, 0, newPageData);
+        canvasPages.splice(newIndex, 0, newCanvas);
+        sessionCanvasPages[`canvasPage_${newIndex}`] = { dataURL: null };
+        pageHistories[newId] = { undo: [{ dataURL: '', points: [], bounds: null }], redo: [] };
+        currentPageIndex = newIndex;
+        const selector = document.getElementById('pageSelector');
+        selector.innerHTML = '';
+        for (let i = 1; i <= canvasPages.length; i++) {
+            const option = document.createElement('option');
+            option.value = i;
+            option.text = `Page ${i}`;
+            selector.appendChild(option);
+        }
+        selector.value = currentPageIndex + 1;
+        currentHistory = pageHistories[newId];
+        await saveDrawingData();
+        overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        redrawCanvas();
+    }
+
+    function newCanvasPage() {
+        addCanvasPage();
+        resizeCanvas();
+    }
+
+    async function clearCurrentPage() {
+        if (!currentHistory) return;
+        // Save the current state before clearing
         const dataURL = overlayCanvas.toDataURL();
-        putToStore('canvasPages', { id: `canvasPage_${currentPageIndex}`, dataURL })
-            .then(() => {
-                const newCanvas = document.createElement('canvas');
-                newCanvas.width = content.offsetWidth;
-                newCanvas.height = content.offsetHeight;
-                // Insert new blank page after the current page
-                canvasPages.splice(currentPageIndex + 1, 0, newCanvas);
-                currentPageIndex = currentPageIndex + 1;
+        currentHistory.undo.push({ dataURL, points: [], bounds: null });
+        if (currentHistory.undo.length > 50) currentHistory.undo.shift();
+        currentHistory.redo = [];
+
+        const oldIndex = currentPageIndex;
+        const pageData = drawingData.pages[currentPageIndex];
+        const removedId = pageData ? pageData.id : null;
+        overlayCanvas.style.opacity = '0';
+        setTimeout(async () => {
+            overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            sessionCanvasPages[`canvasPage_${currentPageIndex}`] = { dataURL: overlayCanvas.toDataURL() };
+            if (pageData) {
+                pageData.dataURL = overlayCanvas.toDataURL();
+            }
+            currentHistory.undo.push({ dataURL: overlayCanvas.toDataURL(), points: [], bounds: null });
+            overlayCanvas.style.opacity = '1';
+            const currentCanvas = canvasPages[currentPageIndex];
+            const ctx = currentCanvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, currentCanvas.width, currentCanvas.height).data;
+            const isEmpty = Array.from(imageData).every(pixel => pixel === 0 || pixel === 255);
+            if (isEmpty && canvasPages.length > 1 && currentPageIndex >= pdfPageCount) {
+                canvasPages.splice(currentPageIndex, 1);
+                drawingData.pages = drawingData.pages.filter(p => p.index !== currentPageIndex);
+                // Rebuild sessionCanvasPages
+                sessionCanvasPages = {};
+                drawingData.pages.forEach(p => {
+                    sessionCanvasPages[`canvasPage_${p.index}`] = { dataURL: p.dataURL };
+                });
+                // Reindex
+                drawingData.pages.forEach((p, i) => p.index = i);
+                if (removedId) {
+                    delete pageHistories[removedId];
+                }
+                if (currentPageIndex >= canvasPages.length) {
+                    currentPageIndex = canvasPages.length - 1;
+                }
                 const selector = document.getElementById('pageSelector');
                 selector.innerHTML = '';
                 for (let i = 1; i <= canvasPages.length; i++) {
@@ -1284,70 +1693,14 @@
                     selector.appendChild(option);
                 }
                 selector.value = currentPageIndex + 1;
-                undoStack = [];
-                redoStack = [];
-                overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-                putToStore('canvasPages', { id: `canvasPage_${currentPageIndex}`, dataURL: overlayCanvas.toDataURL() })
-                    .then(() => redrawCanvas())
-                    .catch(err => console.error('Failed to save new canvas page:', err));
-            })
-            .catch(err => console.error('Failed to save canvas page:', err));
-    }
-
-    function newCanvasPage() {
-        addCanvasPage();
-        resizeCanvas();
-    }
-
-    function clearCurrentPage() {
-        saveCanvasState();
-        overlayCanvas.style.opacity = '0';
-        setTimeout(() => {
-            overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-            putToStore('canvasPages', { id: `canvasPage_${currentPageIndex}`, dataURL: overlayCanvas.toDataURL() })
-                .then(() => {
-                    undoStack = [];
-                    redoStack = [];
-                    overlayCanvas.style.opacity = '1';
-                    const currentCanvas = canvasPages[currentPageIndex];
-                    const ctx = currentCanvas.getContext('2d');
-                    const imageData = ctx.getImageData(0, 0, currentCanvas.width, currentCanvas.height).data;
-                    const isEmpty = Array.from(imageData).every(pixel => pixel === 0 || pixel === 255);
-                    if (isEmpty && canvasPages.length > 1 && currentPageIndex >= pdfPageCount) {
-                        canvasPages.splice(currentPageIndex, 1);
-                        deleteFromStore('canvasPages', `canvasPage_${currentPageIndex}`)
-                            .then(() => {
-                                if (currentPageIndex >= canvasPages.length) {
-                                    currentPageIndex = canvasPages.length - 1;
-                                }
-                                const selector = document.getElementById('pageSelector');
-                                selector.innerHTML = '';
-                                for (let i = 1; i <= canvasPages.length; i++) {
-                                    const option = document.createElement('option');
-                                    option.value = i;
-                                    option.text = `Page ${i}`;
-                                    selector.appendChild(option);
-                                }
-                                selector.value = currentPageIndex + 1;
-                                renderPage(currentPageIndex + 1);
-                            })
-                            .catch(err => console.error('Failed to delete canvas page:', err));
-                    } else {
-                        redrawCanvas();
-                    }
-                })
-                .catch(err => console.error('Failed to save cleared canvas:', err));
+                await renderPage(currentPageIndex + 1);
+                await saveDrawingData();
+            } else {
+                redrawCanvas();
+                clearTimeout(drawingChangeTimeout);
+                drawingChangeTimeout = setTimeout(saveDrawingData, 500);
+            }
         }, 500);
-    }
-
-    function fillCanvas() {
-        saveCanvasState();
-        overlayContext.fillStyle = penColor;
-        overlayContext.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-        redoStack = [];
-        putToStore('canvasPages', { id: `canvasPage_${currentPageIndex}`, dataURL: overlayCanvas.toDataURL() })
-            .then(() => redrawCanvas())
-            .catch(err => console.error('Failed to save filled canvas:', err));
     }
 
     function setPenWidth(width) {
@@ -1356,15 +1709,28 @@
 
     function setPenColor(color) {
         penColor = color;
+        document.getElementById('colorPicker').value = color;
+        document.getElementById('penColor').value = color;
     }
 
     function saveCanvasState(points = []) {
+        if (!currentHistory) return;
         const dataURL = overlayCanvas.toDataURL();
         const bounds = points.length > 0 ? calculateStrokeBounds(points) : null;
-        undoStack.push({ dataURL, points, bounds });
-        if (undoStack.length > 50) undoStack.shift();
-        putToStore('canvasPages', { id: `canvasPage_${currentPageIndex}`, dataURL })
-            .catch(err => console.error('Failed to save canvas state:', err));
+        currentHistory.undo.push({ dataURL, points, bounds });
+        if (currentHistory.undo.length > 50) currentHistory.undo.shift();
+        currentHistory.redo = [];
+        sessionCanvasPages[`canvasPage_${currentPageIndex}`] = { dataURL };
+        const pageData = drawingData.pages.find(p => p.index === currentPageIndex);
+        if (pageData) {
+            pageData.dataURL = dataURL;
+            pageData.width = overlayCanvas.width;
+            pageData.height = overlayCanvas.height;
+        }
+        clearTimeout(drawingChangeTimeout);
+        drawingChangeTimeout = setTimeout(async () => {
+            await saveDrawingData();
+        }, 500);
     }
 
     function calculateStrokeBounds(points) {
@@ -1381,80 +1747,97 @@
     }
 
     function undo() {
-        if (undoStack.length === 0) return;
-        if (undoStack.length === 1) {
+        if (!currentHistory || currentHistory.undo.length === 0) return;
+        const currentState = { dataURL: overlayCanvas.toDataURL(), points: [], bounds: null };
+        if (currentHistory.undo.length === 1) {
+            currentHistory.redo.push(currentState);
+            if (currentHistory.redo.length > 50) currentHistory.redo.shift();
             overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-            putToStore('canvasPages', { id: `canvasPage_${currentPageIndex}`, dataURL: overlayCanvas.toDataURL() })
-                .then(() => {
-                    undoStack = [];
-                    redoStack = [];
-                    redrawCanvas();
-                })
-                .catch(err => console.error('Failed to save canvas undo:', err));
+            sessionCanvasPages[`canvasPage_${currentPageIndex}`] = { dataURL: overlayCanvas.toDataURL() };
+            const pageData = drawingData.pages.find(p => p.index === currentPageIndex);
+            if (pageData) pageData.dataURL = overlayCanvas.toDataURL();
+            currentHistory.undo = [];
+            redrawCanvas();
+            initCurrentHistory();
             return;
         }
-        const currentState = overlayCanvas.toDataURL();
-        redoStack.push({ dataURL: currentState, points: [], bounds: null });
-        if (redoStack.length > 50) redoStack.shift();
-        const prevState = undoStack.pop();
+        currentHistory.redo.push(currentState);
+        if (currentHistory.redo.length > 50) currentHistory.redo.shift();
+        const prevState = currentHistory.undo.pop();
         const img = new Image();
         img.src = prevState.dataURL;
         img.onload = () => {
             overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-            overlayContext.drawImage(img, 0, 0);
-            putToStore('canvasPages', { id: `canvasPage_${currentPageIndex}`, dataURL: overlayCanvas.toDataURL() })
-                .then(() => {
-                    redrawCanvas();
-                    isDrawing = true;
-                    isErasing = false;
-                    document.getElementById('drawButton').classList.add('active');
-                    document.getElementById('eraseButton').classList.remove('active');
-                })
-                .catch(err => console.error('Failed to save canvas undo:', err));
+            overlayContext.drawImage(img, 0, 0, overlayCanvas.width, overlayCanvas.height);
+            sessionCanvasPages[`canvasPage_${currentPageIndex}`] = { dataURL: overlayCanvas.toDataURL() };
+            const pageData = drawingData.pages.find(p => p.index === currentPageIndex);
+            if (pageData) pageData.dataURL = overlayCanvas.toDataURL();
+            redrawCanvas();
+            clearTimeout(drawingChangeTimeout);
+            drawingChangeTimeout = setTimeout(saveDrawingData, 500);
         };
     }
 
     function redo() {
-        if (redoStack.length === 0) return;
-        const currentState = overlayCanvas.toDataURL();
-        undoStack.push({ dataURL: currentState, points: [], bounds: null });
-        if (undoStack.length > 50) undoStack.shift();
-        const nextState = redoStack.pop();
+        if (!currentHistory || currentHistory.redo.length === 0) return;
+        const currentState = { dataURL: overlayCanvas.toDataURL(), points: [], bounds: null };
+        currentHistory.undo.push(currentState);
+        if (currentHistory.undo.length > 50) currentHistory.undo.shift();
+        const nextState = currentHistory.redo.pop();
         const img = new Image();
         img.src = nextState.dataURL;
         img.onload = () => {
             overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-            overlayContext.drawImage(img, 0, 0);
-            putToStore('canvasPages', { id: `canvasPage_${currentPageIndex}`, dataURL: overlayCanvas.toDataURL() })
-                .then(() => redrawCanvas())
-                .catch(err => console.error('Failed to save canvas redo:', err));
+            overlayContext.drawImage(img, 0, 0, overlayCanvas.width, overlayCanvas.height);
+            sessionCanvasPages[`canvasPage_${currentPageIndex}`] = { dataURL: overlayCanvas.toDataURL() };
+            const pageData = drawingData.pages.find(p => p.index === currentPageIndex);
+            if (pageData) pageData.dataURL = overlayCanvas.toDataURL();
+            redrawCanvas();
+            clearTimeout(drawingChangeTimeout);
+            drawingChangeTimeout = setTimeout(saveDrawingData, 500);
         };
+    }
+
+    function drawBackground(ctx) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.strokeStyle = '#e0e0e0';
+        ctx.lineWidth = 1;
+        for (let y = 30; y < ctx.canvas.height; y += 30) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(ctx.canvas.width, y);
+            ctx.stroke();
+        }
     }
 
     async function redrawCanvas() {
         if (canvas.width === 0 || canvas.height === 0) return;
-        canvasContext.clearRect(0, 0, canvas.width, canvas.height);
         if (currentPdf && currentPageIndex < pdfPageCount) {
+            canvasContext.clearRect(0, 0, canvas.width, canvas.height);
             const page = await currentPdf.getPage(currentPageIndex + 1);
-            const viewport = page.getViewport({ scale: 3 });
+            const viewport = page.getViewport({ scale: liveScale });
             await page.render({
                 canvasContext: canvasContext,
                 viewport: viewport,
                 enableWebGL: true
             }).promise;
+        } else {
+            drawBackground(canvasContext);
         }
     }
 
-    // Simplified Smooth Drawing Logic
+    // Smooth Drawing Logic
     function getCoordinates(e) {
         const rect = overlayCanvas.getBoundingClientRect();
+        const scaleX = overlayCanvas.width / rect.width;
+        const scaleY = overlayCanvas.height / rect.height;
         let x, y;
         if (e.type.startsWith('touch')) {
-            x = e.touches[0].clientX - rect.left;
-            y = e.touches[0].clientY - rect.top;
+            x = (e.touches[0].clientX - rect.left) * scaleX;
+            y = (e.touches[0].clientY - rect.top) * scaleY;
         } else {
-            x = e.clientX - rect.left;
-            y = e.clientY - rect.top;
+            x = (e.clientX - rect.left) * scaleX;
+            y = (e.clientY - rect.top) * scaleY;
         }
         return { x, y, time: Date.now() };
     }
@@ -1466,25 +1849,17 @@
         overlayContext.lineJoin = 'round';
         overlayContext.strokeStyle = penColor;
         overlayContext.lineWidth = penWidth;
-        overlayContext.globalAlpha = 100;
-
-        const deltaTime = currentPoint.time - lastTime;
-        const speed = Math.sqrt(
-            Math.pow(currentPoint.x - lastPoint.x, 1) +
-            Math.pow(currentPoint.y - lastPoint.y, 1)
-        ) / (deltaTime || 1);
-        const dynamicWidth = Math.max(1, Math.min(penWidth, penWidth / (1 + speed * 0.1)));
+        overlayContext.globalAlpha = 1;
 
         overlayContext.beginPath();
         overlayContext.moveTo(lastPoint.x, lastPoint.y);
         overlayContext.lineTo(currentPoint.x, currentPoint.y);
-        overlayContext.lineWidth = dynamicWidth;
         overlayContext.stroke();
-        overlayContext.globalAlpha = 100;
+        overlayContext.globalAlpha = 1;
     }
 
     function eraseStroke(x, y) {
-        const eraseRadius = penWidth * 5;
+        const eraseRadius = penWidth * 10;
         overlayContext.globalCompositeOperation = 'destination-out';
         overlayContext.beginPath();
         overlayContext.arc(x, y, eraseRadius, 0, Math.PI * 2);
@@ -1511,31 +1886,47 @@
 
     // Drawing and Swipe Event Listeners
     overlayCanvas.addEventListener('mousedown', (e) => {
-        if (currentSection === 'drawing' && isDrawing && !isLocked) {
-            lastPoint = getCoordinates(e);
-            lastTime = lastPoint.time;
-            strokePoints = [lastPoint];
-        } else if (currentSection === 'drawing' && isErasing && !isLocked) {
-            const point = getCoordinates(e);
-            strokePoints = [point];
-            eraseStroke(point.x, point.y);
+        if (currentSection === 'drawing' && !isLocked) {
+            if (e.button === 0) {
+                isDrawing = true;
+                isErasing = false;
+                document.getElementById('drawButton').classList.add('active');
+                document.getElementById('eraseButton').classList.remove('active');
+                lastPoint = getCoordinates(e);
+                lastTime = lastPoint.time;
+                strokePoints = [lastPoint];
+            } else if (e.button === 2) {
+                isErasing = true;
+                isDrawing = false;
+                document.getElementById('eraseButton').classList.add('active');
+                document.getElementById('drawButton').classList.remove('active');
+                const point = getCoordinates(e);
+                strokePoints = [point];
+                eraseStroke(point.x, point.y);
+            }
+            e.preventDefault();
         }
+    });
+
+    overlayCanvas.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
     });
 
     overlayCanvas.addEventListener('mousemove', (e) => {
-        if (currentSection === 'drawing' && isDrawing && !isLocked) {
-            addPoint(e);
-        } else if (currentSection === 'drawing' && isErasing && !isLocked) {
-            const point = getCoordinates(e);
-            strokePoints.push(point);
-            eraseStroke(point.x, point.y);
+        if (currentSection === 'drawing' && !isLocked) {
+            if (isDrawing) {
+                addPoint(e);
+            } else if (isErasing) {
+                const point = getCoordinates(e);
+                strokePoints.push(point);
+                eraseStroke(point.x, point.y);
+            }
         }
     });
 
-    overlayCanvas.addEventListener('mouseup', () => {
-        if (currentSection === 'drawing' && (isDrawing || isErasing) && !isLocked && strokePoints.length > 0) {
+    overlayCanvas.addEventListener('mouseup', (e) => {
+        if (currentSection === 'drawing' && !isLocked && (isDrawing || isErasing) && strokePoints.length > 0) {
             saveCanvasState(strokePoints);
-            redoStack = [];
             strokePoints = [];
             lastPoint = null;
         }
@@ -1562,6 +1953,17 @@
                 const point = getCoordinates(e);
                 strokePoints = [point];
                 eraseStroke(point.x, point.y);
+            } else if (!isLocked && e.touches.length === 4) {
+                penColor = '#' + Math.floor(Math.random() * 16777215).toString(16);
+                setPenColor(penColor);
+                isDrawing = true;
+                isErasing = false;
+                document.getElementById('drawButton').classList.add('active');
+                document.getElementById('eraseButton').classList.remove('active');
+                const point = getCoordinates(e);
+                lastPoint = point;
+                lastTime = point.time;
+                strokePoints = [point];
             } else if (!isLocked && e.touches.length === 3) {
                 undo();
                 e.preventDefault();
@@ -1572,7 +1974,7 @@
     });
 
     overlayCanvas.addEventListener('touchmove', (e) => {
-        if (currentSection === 'drawing' && !isLocked && (e.touches.length === 1 || e.touches.length === 2)) {
+        if (currentSection === 'drawing' && !isLocked && (e.touches.length === 1 || e.touches.length === 2 || e.touches.length === 4)) {
             addPoint(e);
             e.preventDefault();
         }
@@ -1593,7 +1995,6 @@
             }
         } else if (currentSection === 'drawing' && !isLocked && e.changedTouches.length >= 1 && (isDrawing || isErasing) && strokePoints.length > 0) {
             saveCanvasState(strokePoints);
-            redoStack = [];
             strokePoints = [];
             lastPoint = null;
         }
@@ -1605,7 +2006,13 @@
     });
 
     // Window resize handling
-    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('resize', () => {
+        if (currentSection === 'drawing') {
+            saveCanvasState();
+            resizeCanvas();
+        }
+    });
+</script>
 </script>
 </body>
 </html>
