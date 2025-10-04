@@ -143,88 +143,6 @@
             box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
         }
 
-        /* Support Control */
-        .support-control {
-            position: fixed;
-            bottom: 60px;
-            right: 20px;
-            z-index: 1000;
-        }
-
-        .support-control button {
-            width: 50px;
-            height: 50px;
-            font-size: 20px;
-            color: white;
-            background: green;
-            border: none;
-            border-radius: 50%;
-            cursor: pointer;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .support-control button:hover {
-            transform: scale(1.1);
-            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
-        }
-
-        /* Close Control */
-        .close-control {
-            position: fixed;
-            bottom: 60px;
-            right: 20px;
-            z-index: 1000;
-            display: none;
-        }
-
-        .close-control button {
-            width: 50px;
-            height: 50px;
-            font-size: 20px;
-            color: white;
-            background: #c0392b;
-            border: none;
-            border-radius: 50%;
-            cursor: pointer;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .close-control button:hover {
-            transform: scale(1.1);
-            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
-        }
-
-        /* Support Message Bar */
-        .support-message-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            background: #000000;
-            color: white;
-            padding: 10px 20px;
-            box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.2);
-            font-size: clamp(0.9rem, 2vw, 1rem);
-            z-index: 2000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: opacity 0.5s ease;
-        }
-
-        .support-message-bar.hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
-
         /* Footer */
         footer {
             background: #2c3e50;
@@ -271,16 +189,6 @@
                 bottom: 55px;
                 right: 70px;
             }
-
-            .support-control, .close-control {
-                bottom: 55px;
-                right: 15px;
-            }
-
-            .support-message-bar {
-                font-size: 0.85rem;
-                padding: 8px 15px;
-            }
         }
     </style>
 </head>
@@ -316,19 +224,13 @@
         <div class="feature-card">
             <button onclick="playClickSound(); window.open('https://webtoapk.rerebot.com')">Web to Apk</button>
         </div>
+        <div class="feature-card">
+            <button onclick="playClickSound(); window.open('upi://pay?pa=9348692218-3@ibl&pn=ABHAYA%20%20BEHERA&mc=0000&mode=02&purpose=00', '_blank')">Support Us</button>
+        </div>
     </section>
 
     <div class="audio-control">
         <button id="audio-toggle">▶️</button>
-    </div>
-    <div class="support-control">
-        <button id="support-toggle">✌🏻</button>
-    </div>
-    <div class="close-control">
-        <button id="close-support">✖️</button>
-    </div>
-    <div class="support-message-bar" id="support-message-bar">
-        <span>Donate and Support us by clicking ✌🏻</span>
     </div>
 
     <footer>
@@ -597,33 +499,6 @@
                     .then(reg => console.log('Service Worker registered:', reg))
                     .catch(err => console.log('Service Worker registration failed:', err));
             }
-
-            // Support and close button functionality
-            const supportButton = document.getElementById('support-toggle');
-            const closeButton = document.getElementById('close-support');
-            const supportMessageBar = document.getElementById('support-message-bar');
-            const supportControl = document.querySelector('.support-control');
-            const closeControl = document.querySelector('.close-control');
-
-            // Support button click
-            supportButton.addEventListener('click', () => {
-                playClickSound();
-                supportControl.style.display = 'none';
-                closeControl.style.display = 'flex';
-                setTimeout(() => {
-                    window.open('upi://pay?pa=9348692218-3@ibl&pn=ABHAYA%20%20BEHERA&mc=0000&mode=02&purpose=00', '_blank');
-                }, 3000);
-            });
-
-            // Close button click
-            closeButton.addEventListener('click', () => {
-                supportMessageBar.classList.add('hidden');
-                closeControl.style.display = 'none';
-                setTimeout(() => {
-                    supportMessageBar.classList.remove('hidden');
-                    supportControl.style.display = 'flex';
-                }, 1800000); // 30 minutes
-            });
         });
     </script>
 </body>
