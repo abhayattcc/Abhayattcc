@@ -114,35 +114,6 @@
             background: linear-gradient(45deg, #2980b9, #3498db);
         }
 
-        /* Audio Control */
-        .audio-control {
-            position: fixed;
-            bottom: 60px;
-            right: 80px;
-            z-index: 1000;
-        }
-
-        .audio-control button {
-            width: 50px;
-            height: 50px;
-            font-size: 20px;
-            color: white;
-            background: #e67e22;
-            border: none;
-            border-radius: 50%;
-            cursor: pointer;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .audio-control button:hover {
-            transform: scale(1.1);
-            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
-        }
-
         /* Footer */
         footer {
             background: #2c3e50;
@@ -184,11 +155,6 @@
                 grid-template-columns: 1fr;
                 padding: 20px;
             }
-
-            .audio-control {
-                bottom: 55px;
-                right: 70px;
-            }
         }
     </style>
 </head>
@@ -205,7 +171,6 @@
     </section>
 
     <section class="features">
-
         <div class="feature-card">
             <button onclick="playClickSound(); window.open('https://abhayattcc.github.io/Best-odia-dictionary/')">Dictionary</button>
         </div>
@@ -229,30 +194,23 @@
         </div>
     </section>
 
-    <div class="audio-control">
-        <button id="audio-toggle">▶️</button>
-    </div>
-
     <footer>
         <p>&copy; 2025 Abhayattcc. All rights reserved. | <a href="https://github.com/abhayattcc" target="_blank"><br> Contact Us</a></p>
     </footer>
 
-    <audio id="background-audio" hidden>
-        <source src="https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/whale.mp3" type="audio/mpeg">
-        Your browser does not support the audio element.
-    </audio>
+    <!-- Only click sound remains (optional) -->
     <audio id="click-audio" hidden>
-        <source src="https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/click.mp3" type="audio/mpeg">
+        <source src="https://raw.githubusercontent.com/abhayattcc/Abhayatt {{
+        type="audio/mpeg">
         Your browser does not support the audio element.
     </audio>
 
     <script>
-        // IndexedDB setup for storing HTML, images, and audio
+        // IndexedDB setup (kept for logo caching only)
         const DB_NAME = 'AbhayattccDB';
         const STORE_NAME = 'resources';
         const HTML_KEY = 'index.html';
         const IMAGE_KEY = 'logo';
-        const BG_AUDIO_KEY = 'background-audio';
         const CLICK_AUDIO_KEY = 'click-audio';
 
         function openDB() {
@@ -270,47 +228,35 @@
         async function storeResourceInIndexedDB(key, data) {
             try {
                 const db = await openDB();
-                const transaction = db.transaction([STORE_NAME], 'readwrite');
-                const store = transaction.objectStore(STORE_NAME);
-                return new Promise((resolve, reject) => {
-                    const request = store.put(data, key);
-                    request.onsuccess = () => resolve();
-                    request.onerror = () => reject(request.error);
-                });
-            } catch (error) {
-                console.error(`Failed to store ${key} in IndexedDB:`, error);
-            }
+                const tx = db.transaction([STORE_NAME], 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                await store.put(data, key);
+            } catch (e) { console.error(e); }
         }
 
         async function getResourceFromIndexedDB(key, fallbackUrl) {
             try {
                 const db = await openDB();
-                const transaction = db.transaction([STORE_NAME], 'readonly');
-                const store = transaction.objectStore(STORE_NAME);
-                return new Promise((resolve, reject) => {
-                    const request = store.get(key);
-                    request.onsuccess = () => {
-                        resolve(request.result || (fallbackUrl ? fallbackUrl : null));
-                    };
-                    request.onerror = () => reject(request.error);
-                });
-            } catch (error) {
-                console.error(`Failed to get ${key} from IndexedDB:`, error);
-                return fallbackUrl ? fallbackUrl : null;
+                const tx = db.transaction([STORE_NAME], 'readonly');
+                const store = tx.objectStore(STORE_NAME);
+                const result = await store.get(key);
+                return result || fallbackUrl;
+            } catch (e) {
+                console.error(e);
+                return fallbackUrl;
             }
         }
 
-        // Function to fetch and store resources
+        // Cache only logo and click sound
         async function cacheResources() {
             try {
-                // Cache HTML
                 const htmlContent = document.documentElement.outerHTML;
                 await storeResourceInIndexedDB(HTML_KEY, htmlContent);
 
-                // Cache logo image
+                // Cache logo
                 const logoUrl = 'https://archive.org/download/image_20250904/abhaya.jpg';
-                const logoResponse = await fetch(logoUrl);
-                const logoBlob = await logoResponse.blob();
+                const logoResp = await fetch(logoUrl);
+                const logoBlob = await logoResp.blob();
                 const reader = new FileReader();
                 await new Promise((resolve) => {
                     reader.onloadend = () => {
@@ -320,184 +266,77 @@
                     reader.readAsDataURL(logoBlob);
                 });
 
-                // Cache background audio
-                const bgAudioUrl = 'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/whale.mp3';
-                const bgAudioResponse = await fetch(bgAudioUrl);
-                const bgAudioBlob = await bgAudioResponse.blob();
-                await new Promise((resolve) => {
-                    reader.onloadend = () => {
-                        storeResourceInIndexedDB(BG_AUDIO_KEY, reader.result);
-                        resolve();
-                    };
-                    reader.readAsDataURL(bgAudioBlob);
-                });
-
-                // Cache click audio
+                // Cache click sound
                 const clickAudioUrl = 'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/click.mp3';
-                const clickAudioResponse = await fetch(clickAudioUrl);
-                const clickAudioBlob = await clickAudioResponse.blob();
+                const clickResp = await fetch(clickAudioUrl);
+                const clickBlob = await clickResp.blob();
                 await new Promise((resolve) => {
                     reader.onloadend = () => {
                         storeResourceInIndexedDB(CLICK_AUDIO_KEY, reader.result);
                         resolve();
                     };
-                    reader.readAsDataURL(clickAudioBlob);
+                    reader.readAsDataURL(clickBlob);
                 });
-            } catch (error) {
-                console.error('Failed to cache resources:', error);
-            }
+            } catch (e) { console.error('Caching failed:', e); }
         }
 
-        // Function to load resources from IndexedDB and play audio
         async function loadResources() {
             const logoImage = document.getElementById('logo-image');
-            const bgAudio = document.getElementById('background-audio');
             const clickAudio = document.getElementById('click-audio');
 
-            // Load logo image
-            const logoSrc = await getResourceFromIndexedDB(IMAGE_KEY, 'https://archive.org/download/image_20250904/abhaya.jpg');
-            logoImage.src = logoSrc;
-
-            // Load background audio
-            const bgAudioSrc = await getResourceFromIndexedDB(BG_AUDIO_KEY, 'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/whale.mp3');
-            bgAudio.src = bgAudioSrc;
-
-            // Load click audio
-            const clickAudioSrc = await getResourceFromIndexedDB(CLICK_AUDIO_KEY, 'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/click.mp3');
-            clickAudio.src = clickAudioSrc;
-
-            // Play background audio after successful loading
-            playAudio();
+            logoImage.src = await getResourceFromIndexedDB(IMAGE_KEY, 'https://archive.org/download/image_20250904/abhaya.jpg');
+            clickAudio.src = await getResourceFromIndexedDB(CLICK_AUDIO_KEY, 'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/click.mp3');
         }
 
-        // Function to play click sound
         function playClickSound() {
             const clickAudio = document.getElementById('click-audio');
             clickAudio.currentTime = 0;
-            clickAudio.play().catch(error => console.error('Click sound failed:', error));
+            clickAudio.play().catch(() => {});
         }
 
-        // Function to play background audio
-        function playAudio() {
-            const audio = document.getElementById('background-audio');
-            const audioToggle = document.getElementById('audio-toggle');
-            let playCount = 0;
-            const maxPlays = 5;
-
-            function updateAudioButton() {
-                audioToggle.textContent = audio.paused ? '▶️' : '⏸️';
-            }
-
-            if (playCount < maxPlays) {
-                audio.play().then(() => {
-                    updateAudioButton();
-                    playCount++;
-                }).catch(error => console.error('Audio playback failed:', error));
-            }
-
-            audio.addEventListener('ended', () => {
-                if (playCount < maxPlays) {
-                    audio.currentTime = 0;
-                    audio.play().then(() => {
-                        updateAudioButton();
-                        playCount++;
-                    }).catch(error => console.error('Audio playback failed:', error));
-                } else {
-                    audio.pause();
-                    audio.currentTime = 0;
-                    updateAudioButton();
-                }
-            });
-
-            audioToggle.addEventListener('click', () => {
-                playClickSound();
-                if (audio.paused) {
-                    if (playCount >= maxPlays) {
-                        playCount = 0;
-                    }
-                    audio.play().then(() => {
-                        updateAudioButton();
-                        playCount++;
-                    }).catch(error => console.error('Audio playback failed:', error));
-                } else {
-                    audio.pause();
-                    updateAudioButton();
-                }
-            });
-        }
-
-        // Inline Service Worker
+        // Service Worker (removed whale.mp3)
         const swCode = `
             const CACHE_NAME = 'abhayattcc-v1';
             const urlsToCache = [
                 '/',
                 '/index.html',
-                'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/whale.mp3',
                 'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/click.mp3',
                 'https://archive.org/download/image_20250904/abhaya.jpg',
                 'https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap'
             ];
 
-            self.addEventListener('install', (event) => {
-                event.waitUntil(
-                    caches.open(CACHE_NAME)
-                        .then((cache) => {
-                            return cache.addAll(urlsToCache);
-                        })
+            self.addEventListener('install', (e) => {
+                e.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache)));
+            });
+
+            self.addEventListener('fetch', (e) => {
+                e.respondWith(
+                    caches.match(e.request).then(resp => resp || fetch(e.request).then(netResp => {
+                        if (netResp && netResp.status === 200 && netResp.type === 'basic') {
+                            caches.open(CACHE_NAME).then(cache => cache.put(e.request, netResp.clone()));
+                        }
+                        return netResp;
+                    }))
                 );
             });
 
-            self.addEventListener('fetch', (event) => {
-                event.respondWith(
-                    caches.match(event.request)
-                        .then((response) => {
-                            if (response) {
-                                return response;
-                            }
-                            return fetch(event.request).then(
-                                (networkResponse) => {
-                                    if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-                                        return networkResponse;
-                                    }
-                                    const responseToCache = networkResponse.clone();
-                                    caches.open(CACHE_NAME)
-                                        .then((cache) => {
-                                            cache.put(event.request, responseToCache);
-                                        });
-                                    return networkResponse;
-                                }
-                            );
-                        })
-                );
-            });
-
-            self.addEventListener('activate', (event) => {
-                event.waitUntil(
-                    caches.keys().then((cacheNames) => {
-                        return Promise.all(
-                            cacheNames.filter((name) => name !== CACHE_NAME)
-                                .map((name) => caches.delete(name))
-                        );
-                    })
-                );
+            self.addEventListener('activate', (e) => {
+                e.waitUntil(caches.keys().then(names => Promise.all(
+                    names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n))
+                )));
             });
         `;
 
-        // Register service worker and load resources
         window.addEventListener('load', async () => {
-            // Cache all resources
             await cacheResources();
-
-            // Load resources from IndexedDB
             await loadResources();
 
-            // Register service worker
             if ('serviceWorker' in navigator) {
                 const blob = new Blob([swCode], { type: 'application/javascript' });
                 const swUrl = URL.createObjectURL(blob);
                 navigator.serviceWorker.register(swUrl)
-                    .then(reg => console.log('Service Worker registered:', reg))
-                    .catch(err => console.log('Service Worker registration failed:', err));
+                    .then(() => console.log('SW registered'))
+                    .catch(err => console.log('SW failed:', err));
             }
         });
     </script>
