@@ -20,7 +20,6 @@
             overflow-x: hidden;
         }
 
-        /* Header */
         header {
             background: #ffffff;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
@@ -52,7 +51,6 @@
             margin-left: 10px;
         }
 
-        /* Hero Section */
         .hero {
             background: linear-gradient(135deg, #3498db, #8e44ad);
             color: white;
@@ -72,7 +70,6 @@
             margin: 0 auto;
         }
 
-        /* Features Section */
         .features {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -114,7 +111,6 @@
             background: linear-gradient(45deg, #2980b9, #3498db);
         }
 
-        /* Footer */
         footer {
             background: #2c3e50;
             color: white;
@@ -133,35 +129,21 @@
             text-decoration: underline;
         }
 
-        /* Responsive Design */
         @media (max-width: 768px) {
-            header {
-                padding: 10px 20px;
-            }
-
-            .site-title {
-                font-size: 1.2rem;
-            }
-
-            #logo-image {
-                width: 50px;
-            }
-
-            .hero {
-                padding: 100px 15px 50px;
-            }
-
-            .features {
-                grid-template-columns: 1fr;
-                padding: 20px;
-            }
+            header { padding: 10px 20px; }
+            .site-title { font-size: 1.2rem; }
+            #logo-image { width: 50px; }
+            .hero { padding: 100px 15px 50px; }
+            .features { grid-template-columns: 1fr; padding: 20px; }
         }
     </style>
 </head>
 <body>
     <header>
         <div class="logo-container">
-            <img id="logo-image" src="https://archive.org/download/image_20250904/abhaya.jpg" alt="Brand Logo">
+            <img id="logo-image" 
+                 src="https://raw.githubusercontent.com/abhayattcc/Abhaythepolice/refs/heads/abhayattcc/BackgroundEraser_20251001_131431955.jpg" 
+                 alt="Brand Logo">
             <span class="site-title">Abhaythepolice</span>
         </div>
     </header>
@@ -195,150 +177,119 @@
     </section>
 
     <footer>
-        <p>&copy; 2025 Abhayattcc. All rights reserved. | <a href="https://github.com/abhayattcc" target="_blank"><br> Contact Us</a></p>
+        <p>© 2025 Abhayattcc. All rights reserved. | 
+           <a href="https://github.com/abhayattcc" target="_blank"><br> Contact Us</a></p>
     </footer>
 
-    <!-- Only click sound remains (optional) -->
-    <audio id="click-audio" hidden>
-        <source src="https://raw.githubusercontent.com/abhayattcc/Abhayatt {{
-        type="audio/mpeg">
+    <!-- Click sound -->
+    <audio id="click-audio" preload="auto" hidden>
+        <source src="https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/click.mp3" type="audio/mpeg">
         Your browser does not support the audio element.
     </audio>
 
     <script>
-        // IndexedDB setup (kept for logo caching only)
-        const DB_NAME = 'AbhayattccDB';
-        const STORE_NAME = 'resources';
-        const HTML_KEY = 'index.html';
-        const IMAGE_KEY = 'logo';
-        const CLICK_AUDIO_KEY = 'click-audio';
-
-        function openDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(DB_NAME, 1);
-                request.onupgradeneeded = () => {
-                    const db = request.result;
-                    db.createObjectStore(STORE_NAME);
-                };
-                request.onsuccess = () => resolve(request.result);
-                request.onerror = () => reject(request.error);
-            });
-        }
-
-        async function storeResourceInIndexedDB(key, data) {
-            try {
-                const db = await openDB();
-                const tx = db.transaction([STORE_NAME], 'readwrite');
-                const store = tx.objectStore(STORE_NAME);
-                await store.put(data, key);
-            } catch (e) { console.error(e); }
-        }
-
-        async function getResourceFromIndexedDB(key, fallbackUrl) {
-            try {
-                const db = await openDB();
-                const tx = db.transaction([STORE_NAME], 'readonly');
-                const store = tx.objectStore(STORE_NAME);
-                const result = await store.get(key);
-                return result || fallbackUrl;
-            } catch (e) {
-                console.error(e);
-                return fallbackUrl;
-            }
-        }
-
-        // Cache only logo and click sound
-        async function cacheResources() {
-            try {
-                const htmlContent = document.documentElement.outerHTML;
-                await storeResourceInIndexedDB(HTML_KEY, htmlContent);
-
-                // Cache logo
-                const logoUrl = 'https://archive.org/download/image_20250904/abhaya.jpg';
-                const logoResp = await fetch(logoUrl);
-                const logoBlob = await logoResp.blob();
-                const reader = new FileReader();
-                await new Promise((resolve) => {
-                    reader.onloadend = () => {
-                        storeResourceInIndexedDB(IMAGE_KEY, reader.result);
-                        resolve();
-                    };
-                    reader.readAsDataURL(logoBlob);
-                });
-
-                // Cache click sound
-                const clickAudioUrl = 'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/click.mp3';
-                const clickResp = await fetch(clickAudioUrl);
-                const clickBlob = await clickResp.blob();
-                await new Promise((resolve) => {
-                    reader.onloadend = () => {
-                        storeResourceInIndexedDB(CLICK_AUDIO_KEY, reader.result);
-                        resolve();
-                    };
-                    reader.readAsDataURL(clickBlob);
-                });
-            } catch (e) { console.error('Caching failed:', e); }
-        }
-
-        async function loadResources() {
-            const logoImage = document.getElementById('logo-image');
-            const clickAudio = document.getElementById('click-audio');
-
-            logoImage.src = await getResourceFromIndexedDB(IMAGE_KEY, 'https://archive.org/download/image_20250904/abhaya.jpg');
-            clickAudio.src = await getResourceFromIndexedDB(CLICK_AUDIO_KEY, 'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/click.mp3');
-        }
-
+        // Simple click sound player
         function playClickSound() {
-            const clickAudio = document.getElementById('click-audio');
-            clickAudio.currentTime = 0;
-            clickAudio.play().catch(() => {});
+            const audio = document.getElementById('click-audio');
+            audio.currentTime = 0;
+            audio.play().catch(() => {});
         }
 
-        // Service Worker (removed whale.mp3)
+        // =============================================
+        // Inline Service Worker + Cache Storage
+        // =============================================
         const swCode = `
-            const CACHE_NAME = 'abhayattcc-v1';
-            const urlsToCache = [
+            const CACHE_NAME = 'abhayattcc-static-v2';
+
+            const ASSETS = [
                 '/',
                 '/index.html',
+                'https://raw.githubusercontent.com/abhayattcc/Abhaythepolice/refs/heads/abhayattcc/BackgroundEraser_20251001_131431955.jpg',
                 'https://raw.githubusercontent.com/abhayattcc/Abhayattcc/refs/heads/abhayattcc/click.mp3',
-                'https://archive.org/download/image_20250904/abhaya.jpg',
                 'https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap'
             ];
 
-            self.addEventListener('install', (e) => {
-                e.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache)));
-            });
-
-            self.addEventListener('fetch', (e) => {
-                e.respondWith(
-                    caches.match(e.request).then(resp => resp || fetch(e.request).then(netResp => {
-                        if (netResp && netResp.status === 200 && netResp.type === 'basic') {
-                            caches.open(CACHE_NAME).then(cache => cache.put(e.request, netResp.clone()));
-                        }
-                        return netResp;
-                    }))
+            // Install - cache important assets
+            self.addEventListener('install', event => {
+                event.waitUntil(
+                    caches.open(CACHE_NAME)
+                        .then(cache => cache.addAll(ASSETS))
+                        .then(() => self.skipWaiting())
                 );
             });
 
-            self.addEventListener('activate', (e) => {
-                e.waitUntil(caches.keys().then(names => Promise.all(
-                    names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n))
-                )));
+            // Activate - clean old caches
+            self.addEventListener('activate', event => {
+                event.waitUntil(
+                    caches.keys().then(cacheNames => {
+                        return Promise.all(
+                            cacheNames.filter(name => name !== CACHE_NAME)
+                                .map(name => caches.delete(name))
+                        );
+                    })
+                    .then(() => self.clients.claim())
+                );
+            });
+
+            // Fetch strategy: Cache First, then Network + update cache
+            self.addEventListener('fetch', event => {
+                const url = new URL(event.request.url);
+
+                // Only handle GET requests and our known domains
+                if (event.request.method !== 'GET') return;
+
+                event.respondWith(
+                    caches.match(event.request)
+                        .then(cachedResponse => {
+                            // Return from cache if found
+                            if (cachedResponse) {
+                                return cachedResponse;
+                            }
+
+                            // Otherwise try network
+                            return fetch(event.request)
+                                .then(networkResponse => {
+                                    // Don't cache non-successful responses or non-basic type
+                                    if (!networkResponse || 
+                                        networkResponse.status !== 200 || 
+                                        networkResponse.type !== 'basic' &&
+                                        !url.href.includes('raw.githubusercontent.com')) {
+                                        return networkResponse;
+                                    }
+
+                                    // Cache successful response
+                                    const responseToCache = networkResponse.clone();
+                                    caches.open(CACHE_NAME)
+                                        .then(cache => {
+                                            cache.put(event.request, responseToCache);
+                                        });
+
+                                    return networkResponse;
+                                })
+                                .catch(() => {
+                                    // Fallback: return cached version if exists (even stale)
+                                    return caches.match(event.request);
+                                });
+                        })
+                );
             });
         `;
 
-        window.addEventListener('load', async () => {
-            await cacheResources();
-            await loadResources();
-
-            if ('serviceWorker' in navigator) {
+        // Register inline service worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
                 const blob = new Blob([swCode], { type: 'application/javascript' });
                 const swUrl = URL.createObjectURL(blob);
+
                 navigator.serviceWorker.register(swUrl)
-                    .then(() => console.log('SW registered'))
-                    .catch(err => console.log('SW failed:', err));
-            }
-        });
+                    .then(reg => {
+                        console.log('Service Worker registered (inline)', reg);
+                    })
+                    .catch(err => {
+                        console.error('Service Worker registration failed:', err);
+                    });
+            });
+        }
     </script>
 </body>
 </html>
